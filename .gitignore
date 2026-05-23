@@ -1,0 +1,6 @@
+node_modules
+.env
+data/users.json
+data/note.json
+data/feedback.json
+db.json
