@@ -720,7 +720,12 @@ app.post("/api/test/reset-usage", requireAuth, (req, res) => {
 });
 
 app.post("/api/analyze", requireAuth, async (req, res) => {
+
+    console.log("🔥 /api/analyze 요청 들어옴");
+console.log("body:", req.body);
+console.log("user:", req.session?.user?.email || req.user?.email || "유저정보 없음");
     try {
+
         const { subject, problem, userAnswer, correctAnswer } = req.body;
         const user = req.currentUser;
         ensureUserShape(user);
