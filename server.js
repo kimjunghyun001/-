@@ -328,7 +328,14 @@ function buildAnalyzePrompt(problem, userAnswer, correctAnswer, plan) {
 
 학생용 오답 분석을 해줘.
 반드시 아래 JSON만 출력해.
+사용자가 입력한 정답을 무조건 믿지 마라.
+먼저 문제를 직접 풀어서 AI가 판단한 정답을 구해라.
+AI가 판단한 정답과 사용자가 입력한 정답이 다르면 answerMatched를 false로 하고 warning에 "입력한 정답이 실제 정답과 다를 수 있습니다. 정답을 다시 확인해 주세요."라고 적어라.
+AI가 판단한 정답과 사용자가 입력한 정답이 같으면 answerMatched를 true로 하고 warning은 빈 문자열로 둬라.
 {
+  "aiAnswer": "",
+  "answerMatched": true,
+  "warning": "",
   "reason": "...",
   "concept": "...",
   "solution": "...",
@@ -427,13 +434,16 @@ async function requestOpenAIAnalyze(problem, userAnswer, correctAnswer, plan, ap
     if (similarProblems.length < similarCount) {
         similarProblems = [...similarProblems, ...makeFallbackSimilarProblems(problem, similarCount)].slice(0, similarCount);
     }
+return {
+    aiAnswer: safeText(parsed.aiAnswer) || "",
+    answerMatched: parsed.answerMatched !== false,
+    warning: safeText(parsed.warning) || "",
 
-    return {
-        reason: safeText(parsed.reason) || "분석 결과가 없습니다.",
-        concept: safeText(parsed.concept) || "개념 설명이 없습니다.",
-        solution: safeText(parsed.solution) || "해결 방법이 없습니다.",
-        similarProblems
-    };
+    reason: safeText(parsed.reason) || "분석 결과가 없습니다.",
+    concept: safeText(parsed.concept) || "개념 설명이 없습니다.",
+    solution: safeText(parsed.solution) || "해결 방법이 없습니다.",
+    similarProblems
+};
 }
 
 async function requestOpenAIAdvanced(problem, apiKey) {
@@ -473,10 +483,12 @@ async function requestOpenAIAdvanced(problem, apiKey) {
 
     let parsed = {};
     try {
-        parsed = JSON.parse(content);
-    } catch {
-        parsed = {};
-    }
+  parsed = JSON.parse(content);
+} catch {
+  parsed = {};
+}
+
+console.log("AI parsed:", parsed);
 
     return {
         advancedProblem: safeText(parsed.advancedProblem) || makeFallbackAdvancedProblem(problem)
