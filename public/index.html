@@ -40,6 +40,7 @@
                     <div>
                         <h2 id="welcomeText">환영합니다</h2>
                         <p id="usageText" class="usage-text"></p>
+                        <p id="advancedUsageText" class="usage-text"></p>
                         <p id="slotText" class="check-text"></p>
                     </div>
                     <div class="button-row">
@@ -86,15 +87,28 @@
                 <p id="similarModeText" class="usage-text" hidden>유사문제 풀이 모드입니다.</p>
                 <p id="advancedModeText" class="usage-text advanced-mode" hidden>응용문제 풀이 모드입니다.</p>
 
-                <label for="subject">과목</label>
-                <select id="subject">
-                    <option value="수학">수학</option>
-                    <option value="영어">영어</option>
-                    <option value="국어">국어</option>
-                    <option value="과학">과학</option>
-                    <option value="사회">사회</option>
-                    <option value="기계일반">기계일반</option>
-                </select>
+            <label for="subject">과목</label>
+
+<select id="subject"></select>
+
+<div class="subject-manage-row">
+    <input
+        id="newSubjectInput"
+        type="text"
+        maxlength="20"
+        placeholder="추가할 과목"
+    />
+
+    <button id="addSubjectBtn" type="button" class="secondary-btn">
+        과목 추가
+    </button>
+
+    <button id="deleteSubjectBtn" type="button" class="danger-btn">
+        선택 과목 삭제
+    </button>
+</div>
+
+<p id="subjectMessage" class="check-text"></p>
 
                 <label for="problem">문제</label>
                 <textarea id="problem" placeholder="문제를 입력하세요"></textarea>
@@ -119,6 +133,10 @@
             <div class="card" id="cardAnalysis">
                 <h2>AI 분석 결과</h2>
 
+                <div id="verificationBox" hidden>
+    <p><strong>AI 판단 정답:</strong> <span id="resultAiAnswer"></span></p>
+    <p id="resultWarning"></p>
+    
                 <p class="section-label">1. 틀린 이유</p>
                 <p id="resultReason" class="result-box">아직 분석 결과가 없습니다.</p>
 
@@ -193,16 +211,10 @@
                     <div class="toolbar">
                         <div class="toolbar-item">
                             <label for="filterSubject">과목 필터</label>
-                            <select id="filterSubject">
-                                <option value="전체">전체</option>
-                                <option value="수학">수학</option>
-                                <option value="영어">영어</option>
-                                <option value="국어">국어</option>
-                                <option value="과학">과학</option>
-                                <option value="사회">사회</option>
-                                <option value="기계일반">기계일반</option>
-                            </select>
-                        </div>
+                         <select id="filterSubject">
+    <option value="전체">전체</option>
+</select>
+</div>
 
                         <div class="toolbar-item">
                             <label for="searchInput">검색</label>
@@ -213,9 +225,7 @@
                             <label for="sortType">정렬</label>
                             <select id="sortType">
                                 <option value="latest">최신순</option>
-                                <option value="oldest">오래된순</option>
-                                <option value="subject">과목순</option>
-                                <option value="repeat">반복오답순</option>
+                                <option value="oldest">오래된순</option>                        
                             </select>
                         </div>
                     </div>

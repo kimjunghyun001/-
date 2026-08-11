@@ -247,7 +247,8 @@ button:disabled {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
-    margin: 10px 0;
+    margin: 14px 0;
+    width: 100%;
 }
 
 #wrongCount,
@@ -258,6 +259,8 @@ button:disabled {
     border-radius: 10px;
     font-weight: 700;
     border: 1px solid #dde7f3;
+      min-width: 0;
+    word-break: keep-all;
 }
 
 .summary-stats-grid {
@@ -414,12 +417,12 @@ button:disabled {
     }
 }
 
-#plan5900,
+/* #plan5900,
 #plan8900,
 .premium-card,
 .price-card-premium {
     display: none !important;
-}
+} */
 
 .test-banner{
     background:#111827;
@@ -430,10 +433,10 @@ button:disabled {
     text-align:center;
     font-weight:600;
 }
-#plan5900,
+/* #plan5900,
 #plan8900{
 display:none!important;
-}
+} */
 .testMode{
 padding:10px;
 background:#2563eb;
@@ -449,4 +452,38 @@ text-align:center;
 .test-reset,
 [data-plan="reset"]{
 display:none !important;
+}
+#wrongList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+#wrongList li {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 16px;
+    margin-top: 12px;
+    border: 1px solid #dde7f3;
+    border-radius: 12px;
+    background: #ffffff;
+    line-height: 1.6;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+#wrongList li > div {
+    margin-bottom: 3px;
+}
+
+#wrongList li .item-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    margin-bottom: 0;
+}
+
+#wrongList li .item-buttons button {
+    width: auto;
 }

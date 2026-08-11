@@ -95,10 +95,40 @@ function applyPlanToCurrentAnalysis() {
 function renderCurrentAnalysis() {
     const state = currentAnalysisState || {};
 
-    $("resultReason").textContent = state.reason || "아직 분석 결과가 없습니다.";
-    $("resultConcept").textContent = state.concept || "아직 분석 결과가 없습니다.";
-    $("resultSolution").textContent = state.solution || "아직 분석 결과가 없습니다.";
-    $("advancedProblemBox").textContent = state.advancedProblem || "아직 응용문제가 없습니다.";
+    const verificationBox = $("verificationBox");
+    const aiAnswerText = $("resultAiAnswer");
+    const warningText = $("resultWarning");
+
+    if (state.aiAnswer || state.warning) {
+        verificationBox.hidden = false;
+        aiAnswerText.textContent = state.aiAnswer || "확인 어려움";
+
+        warningText.textContent = state.warning || "";
+
+        if (state.verification === "mismatch") {
+            warningText.style.color = "red";
+        } else if (state.verification === "uncertain") {
+            warningText.style.color = "orange";
+        } else {
+            warningText.style.color = "green";
+        }
+    } else {
+        verificationBox.hidden = true;
+        aiAnswerText.textContent = "";
+        warningText.textContent = "";
+    }
+
+    $("resultReason").textContent =
+        state.reason || "아직 분석 결과가 없습니다.";
+
+    $("resultConcept").textContent =
+        state.concept || "아직 분석 결과가 없습니다.";
+
+    $("resultSolution").textContent =
+        state.solution || "아직 분석 결과가 없습니다.";
+
+    $("advancedProblemBox").textContent =
+        state.advancedProblem || "아직 응용문제가 없습니다.";
 
     renderSimilarProblems(state.similarProblems || []);
     updateUpsellTexts(state.similarProblems || []);
@@ -131,17 +161,33 @@ function renderSimilarProblems(items) {
     }
 
     items.forEach((problem, index) => {
-        const div = document.createElement("div");
-        div.className = "problem-item";
-        div.innerHTML = `
-            <div class="problem-item-title">유사문제 ${index + 1}</div>
-            <div class="problem-item-text">${escapeHtml(problem)}</div>
-            <div class="button-row">
-                <button type="button" class="secondary-btn" data-index="${index}">이 문제 풀기</button>
-            </div>
-        `;
-        box.appendChild(div);
-    });
+    const div = document.createElement("div");
+    div.className = "problem-item";
+
+   const text =
+    typeof problem === "string"
+        ? problem
+        : (
+            problem.problem ||
+            problem.question ||
+            problem.text ||
+            problem.content ||
+            problem.prompt ||
+            ""
+        );
+
+    div.innerHTML = `
+        <div class="problem-item-title">유사문제 ${index + 1}</div>
+        <div class="problem-item-text">${escapeHtml(text)}</div>
+        <div class="button-row">
+            <button type="button" class="secondary-btn" data-index="${index}">
+                이 문제 풀기
+            </button>
+        </div>
+    `;
+
+    box.appendChild(div);
+});
 
     box.querySelectorAll("[data-index]").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -149,7 +195,17 @@ function renderSimilarProblems(items) {
             const chosen = currentAnalysisState?.similarProblems?.[idx];
             if (!chosen) return;
 
-            $("problem").value = chosen;
+     $("problem").value =
+    typeof chosen === "string"
+        ? chosen
+        : (
+            chosen.problem ||
+            chosen.question ||
+            chosen.text ||
+            chosen.content ||
+            chosen.prompt ||
+            ""
+        );
             $("userAnswer").value = "";
             $("correctAnswer").value = "";
             activeModeState = { type: "similar", sourceIndex: idx };
@@ -176,6 +232,13 @@ function getFilteredAndSortedWrongNotes() {
     if (!dashboardState) return [];
 
     let notes = [...(dashboardState.wrongNotes || [])];
+
+    const activeSubjects = dashboardState?.user?.subjects || [];
+
+notes = notes.filter((note) =>
+    activeSubjects.includes(note.subject)
+);
+
     const filterSubject = $("filterSubject").value;
     const search = $("searchInput").value.trim().toLowerCase();
     const sortType = $("sortType").value;
@@ -184,28 +247,60 @@ function getFilteredAndSortedWrongNotes() {
         notes = notes.filter((note) => note.subject === filterSubject);
     }
 
-    if (search) {
+ if (search) {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    // 문제 구분 검색은 정확한 필터로 처리
+    if (normalizedSearch === "기본" || normalizedSearch === "기본문제") {
         notes = notes.filter((note) =>
-            note.problem.toLowerCase().includes(search) ||
-            note.userAnswer.toLowerCase().includes(search) ||
-            note.correctAnswer.toLowerCase().includes(search) ||
-            String(note.reason || "").toLowerCase().includes(search) ||
-            String(note.concept || "").toLowerCase().includes(search) ||
-            String(note.solution || "").toLowerCase().includes(search)
+            !note.sourceType || note.sourceType === "normal"
         );
-    }
+    } else if (normalizedSearch === "유사" || normalizedSearch === "유사문제") {
+        notes = notes.filter((note) =>
+            note.sourceType === "similar"
+        );
+    } else if (normalizedSearch === "응용" || normalizedSearch === "응용문제") {
+        notes = notes.filter((note) =>
+            note.sourceType === "advanced"
+        );
+    } else {
+        // 그 외 검색어는 기존처럼 내용 전체 검색
+        notes = notes.filter((note) => {
+            const typeLabel =
+                note.sourceType === "similar"
+                    ? "유사문제"
+                    : note.sourceType === "advanced"
+                    ? "응용문제"
+                    : "기본문제";
 
-    if (sortType === "latest") {
-        notes.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
-    } else if (sortType === "oldest") {
-        notes.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    } else if (sortType === "subject") {
-        notes.sort((a, b) => a.subject.localeCompare(b.subject));
-    } else if (sortType === "repeat") {
-        notes.sort((a, b) => (b.repeatWrongCount || 0) - (a.repeatWrongCount || 0));
+            return (
+                typeLabel.toLowerCase().includes(normalizedSearch) ||
+                String(note.problem || "").toLowerCase().includes(normalizedSearch) ||
+                String(note.userAnswer || "").toLowerCase().includes(normalizedSearch) ||
+                String(note.correctAnswer || "").toLowerCase().includes(normalizedSearch) ||
+                String(note.reason || "").toLowerCase().includes(normalizedSearch) ||
+                String(note.concept || "").toLowerCase().includes(normalizedSearch) ||
+                String(note.solution || "").toLowerCase().includes(normalizedSearch)
+            );
+        });
     }
+}
 
-    return notes;
+ if (sortType === "latest") {
+    notes.sort(
+        (a, b) =>
+            (b.updatedAt || b.createdAt || 0) -
+            (a.updatedAt || a.createdAt || 0)
+    );
+} else if (sortType === "oldest") {
+    notes.sort(
+        (a, b) =>
+            (a.createdAt || 0) -
+            (b.createdAt || 0)
+    );
+}
+
+return notes;
 }
 
 function renderWrongList() {
@@ -257,7 +352,12 @@ function renderWrongList() {
 
 function renderSolvedList() {
     const list = $("solvedList");
-    const notes = [...(dashboardState?.solvedNotes || [])].sort((a, b) => (b.solvedAt || 0) - (a.solvedAt || 0));
+
+    const activeSubjects = dashboardState?.user?.subjects || [];
+
+    const notes = [...(dashboardState?.solvedNotes || [])]
+        .filter((note) => activeSubjects.includes(note.subject))
+        .sort((a, b) => (b.solvedAt || 0) - (a.solvedAt || 0));
 
     list.innerHTML = "";
 
@@ -300,7 +400,12 @@ function renderSolvedList() {
 
 function renderRecommendedReviews() {
     const box = $("recommendedReviewBox");
-    const list = dashboardState?.recommendedReviews || [];
+
+const activeSubjects = dashboardState?.user?.subjects || [];
+
+const list = (dashboardState?.recommendedReviews || []).filter(
+    (item) => activeSubjects.includes(item.subject)
+);
 
     box.innerHTML = "";
 
@@ -321,9 +426,16 @@ function renderRecommendedReviews() {
 }
 
 function renderSummaryStats() {
-    const wrongNotes = dashboardState?.wrongNotes || [];
-    const solvedNotes = dashboardState?.solvedNotes || [];
+    const activeSubjects = dashboardState?.user?.subjects || [];
 
+    const wrongNotes = (dashboardState?.wrongNotes || []).filter(
+        (note) => activeSubjects.includes(note.subject)
+    );
+
+    const solvedNotes = (dashboardState?.solvedNotes || []).filter(
+        (note) => activeSubjects.includes(note.subject)
+    );
+    
     const totalWrong = wrongNotes.length;
     const totalSolved = solvedNotes.length;
     const totalHandled = totalWrong + totalSolved;
@@ -350,7 +462,9 @@ function renderSubjectStats() {
 
     box.innerHTML = "";
 
-    ["수학", "영어", "국어", "과학", "사회", "기계일반"].forEach((subject) => {
+   const subjects = dashboardState?.user?.subjects || [];
+
+subjects.forEach((subject) => {
         const wrongCount = wrongNotes.filter((note) => note.subject === subject).length;
         const solvedCount = solvedNotes.filter((note) => note.subject === subject).length;
         const extraCount = wrongNotes.filter((note) => note.subject === subject && (note.sourceType === "similar" || note.sourceType === "advanced")).length;
@@ -379,25 +493,80 @@ function renderSubjectStats() {
 }
 
 function updateCounts() {
-    const wrongNotes = dashboardState?.wrongNotes || [];
-    const solvedNotes = dashboardState?.solvedNotes || [];
+    const activeSubjects = dashboardState?.user?.subjects || [];
+
+    const wrongNotes = (dashboardState?.wrongNotes || []).filter(
+        (note) => activeSubjects.includes(note.subject)
+    );
+
+    const solvedNotes = (dashboardState?.solvedNotes || []).filter(
+        (note) => activeSubjects.includes(note.subject)
+    );
+
     const filteredNotes = getFilteredAndSortedWrongNotes();
 
     $("wrongCount").textContent = `오답 개수: ${wrongNotes.length}`;
     $("solvedCount").textContent = `복습완료 개수: ${solvedNotes.length}`;
-    $("filterCount").textContent = `현재 보기: ${$("filterSubject").value} / ${filteredNotes.length}개`;
+    $("filterCount").textContent =
+        `현재 보기: ${$("filterSubject").value} / ${filteredNotes.length}개`;
+}
+
+function renderSubjects() {
+    if (!dashboardState) return;
+
+    const subjects = dashboardState.user?.subjects || [];
+    const subjectSelect = $("subject");
+    const filterSelect = $("filterSubject");
+
+    const currentSubject = subjectSelect.value;
+    const currentFilter = filterSelect.value;
+
+    // 문제 입력 과목
+    subjectSelect.innerHTML = "";
+
+    subjects.forEach((subject) => {
+        const option = document.createElement("option");
+        option.value = subject;
+        option.textContent = subject;
+        subjectSelect.appendChild(option);
+    });
+
+    // 기존 선택 과목이 아직 존재하면 유지
+    if (subjects.includes(currentSubject)) {
+        subjectSelect.value = currentSubject;
+    }
+
+    // 오답 리스트 과목 필터
+    filterSelect.innerHTML = `<option value="전체">전체</option>`;
+
+    subjects.forEach((subject) => {
+        const option = document.createElement("option");
+        option.value = subject;
+        option.textContent = subject;
+        filterSelect.appendChild(option);
+    });
+
+    if (currentFilter === "전체" || subjects.includes(currentFilter)) {
+        filterSelect.value = currentFilter || "전체";
+    }
 }
 
 function renderDashboard(dashboard) {
     dashboardState = dashboard;
 
+    renderSubjects();
+
     const remainAi = Math.max(0, dashboard.planRule.aiDaily - dashboard.usageAi.count);
-    const storageText = dashboard.planRule.storageLimit === Infinity
+  const storageLimit = dashboard.planRule.storageLimit;
+
+const storageText =
+    storageLimit == null || storageLimit === Infinity
         ? "무제한"
-        : `${dashboard.wrongNotes.length}/${dashboard.planRule.storageLimit}`;
+        : `${dashboard.wrongNotes.length}/${storageLimit}`;
 
     $("welcomeText").textContent = `${dashboard.user.name}님 / ${getPlanLabel(dashboard.user.plan)} 요금제`;
     $("usageText").textContent = `남은 AI 분석: ${remainAi} / 하루 제한: ${dashboard.planRule.aiDaily}`;
+    $("advancedUsageText").textContent =`응용문제 생성: ${dashboard.advancedUsage.used}회 (테스트 모드 · 제한 해제)`;
     $("slotText").textContent = `저장 현황: ${storageText}`;
 
     updatePlanLocks();
@@ -471,6 +640,11 @@ async function register() {
 
 async function login() {
     try {
+        console.log("로그인 입력값:", {
+            email: $("loginEmail").value,
+            password: $("loginPassword").value
+        });
+
         const data = await api("/api/auth/login", "POST", {
             email: $("loginEmail").value,
             password: $("loginPassword").value
@@ -523,6 +697,60 @@ async function loadMe() {
     }
 }
 
+async function addSubject() {
+    const subject = $("newSubjectInput").value.trim();
+
+    if (!subject) {
+        showMessage("추가할 과목을 입력해주세요.", "red");
+        return;
+    }
+
+    try {
+        const data = await api("/api/subjects/add", "POST", {
+            subject
+        });
+
+        renderDashboard(data.dashboard);
+
+        // 방금 추가한 과목 자동 선택
+        if (data.subjects.includes(subject)) {
+            $("subject").value = subject;
+        }
+
+        $("newSubjectInput").value = "";
+        showMessage(data.message, "green");
+
+    } catch (error) {
+        showMessage(error.message, "red");
+    }
+}
+
+
+async function deleteSubject() {
+    const subject = $("subject").value;
+
+    if (!subject) {
+        showMessage("삭제할 과목을 선택해주세요.", "red");
+        return;
+    }
+
+    const ok = confirm(`'${subject}' 과목을 삭제할까요?`);
+
+    if (!ok) return;
+
+    try {
+        const data = await api("/api/subjects/delete", "POST", {
+            subject
+        });
+
+        renderDashboard(data.dashboard);
+        showMessage(data.message, "blue");
+
+    } catch (error) {
+        showMessage(error.message, "red");
+    }
+}
+
 async function changePlan(plan) {
     try {
         const data = await api("/api/plan/test-change", "POST", { plan });
@@ -557,40 +785,50 @@ async function analyze() {
 
     const rule = getCurrentPlanRule();
 
-    if (!rule.duplicateAnalyze) {
-        const exists = (dashboardState?.wrongNotes || []).some(
-            (note) =>
-                note.subject === subject &&
-                note.problem === problem &&
-                note.correctAnswer === correctAnswer
-        );
+    // if (!rule.duplicateAnalyze) {
+    //     const exists = (dashboardState?.wrongNotes || []).some(
+    //         (note) =>
+    //             note.subject === subject &&
+    //             note.problem === problem &&
+    //             note.correctAnswer === correctAnswer
+    //     );
 
-        if (exists) {
-            showMessage("무료 요금제에서는 같은 문제를 다시 분석할 수 없습니다.", "red");
-            return;
-        }
-    }
+    //     if (exists) {
+    //         showMessage("무료 요금제에서는 같은 문제를 다시 분석할 수 없습니다.", "red");
+    //         return;
+    //     }
+    // }
 
     setLoading(true);
     showMessage("AI 분석 중입니다...", "blue");
 
+console.log("분석 직전 activeModeState:", activeModeState);
+
     try {
-        const data = await api("/api/analyze", "POST", {
-            subject,
-            problem,
-            userAnswer,
-            correctAnswer
-        });
+        console.log("AI 분석 버튼 눌림");
+
+       const data = await api("/api/analyze", "POST", {
+    subject,
+    problem,
+    userAnswer,
+    correctAnswer,
+    sourceType: activeModeState?.type || "normal"
+});
 
         currentAnalysisState = data.analysis;
         renderDashboard(data.dashboard);
         applyPlanToCurrentAnalysis();
         showMessage(data.message, "green");
-    } catch (error) {
-        showMessage(error.message, "red");
-    } finally {
-        setLoading(false);
-    }
+ } catch (error) {
+    currentAnalysisState = null;
+
+    renderCurrentAnalysis();
+    updateModeUI();
+
+    showMessage(error.message, "red");
+} finally {
+    setLoading(false);
+}
 }
 
 async function generateAdvancedProblem() {
@@ -611,13 +849,16 @@ async function generateAdvancedProblem() {
         });
 
         if (!currentAnalysisState) {
-            currentAnalysisState = {
-                reason: "아직 분석 결과가 없습니다.",
-                concept: "아직 분석 결과가 없습니다.",
-                solution: "아직 분석 결과가 없습니다.",
-                similarProblems: [],
-                advancedProblem: data.advancedProblem
-            };
+       currentAnalysisState = {
+    aiAnswer: "",
+    verification: "uncertain",
+    warning: "",
+    reason: "아직 분석 결과가 없습니다.",
+    concept: "아직 분석 결과가 없습니다.",
+    solution: "아직 분석 결과가 없습니다.",
+    similarProblems: [],
+    advancedProblem: data.advancedProblem
+};
         } else {
             currentAnalysisState.advancedProblem = data.advancedProblem;
         }
@@ -641,7 +882,14 @@ async function checkAnswer() {
         return;
     }
 
-    try {
+  const sourceType = activeModeState?.type || "normal";
+
+    currentAnalysisState = null;
+    renderCurrentAnalysis();
+    updateModeUI();
+
+
+try {
         const data = await api("/api/notes/check", "POST", {
             subject,
             problem,
@@ -714,14 +962,16 @@ function retryWrongNote(id) {
     $("userAnswer").value = note.userAnswer;
     $("correctAnswer").value = note.correctAnswer;
 
-    currentAnalysisState = {
-        reason: note.reason,
-        concept: note.concept,
-        solution: note.solution,
-        similarProblems: note.similarProblems || [],
-        advancedProblem: note.advancedProblem || "아직 응용문제가 없습니다."
-    };
-
+   currentAnalysisState = {
+    aiAnswer: note.aiAnswer || "",
+    verification: note.verification || "uncertain",
+    warning: note.warning || "",
+    reason: note.reason,
+    concept: note.concept,
+    solution: note.solution,
+    similarProblems: note.similarProblems || [],
+    advancedProblem: note.advancedProblem || "아직 응용문제가 없습니다."
+};
     if (note.sourceType === "similar" || note.sourceType === "advanced") {
         activeModeState = { type: note.sourceType };
     } else {
@@ -739,7 +989,12 @@ function retryWrongNote(id) {
         showMessage("오답을 다시 불러왔습니다.", "blue");
     }
 
-    window.scrollTo({ top: 0, behavior: "smooth" });
+ $("problem").scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+});
+
+$("problem").focus();
 }
 
 function getSectionState(key, defaultValue = false) {
@@ -794,6 +1049,9 @@ document.addEventListener("DOMContentLoaded", () => {
     $("registerBtn").addEventListener("click", register);
     $("loginBtn").addEventListener("click", login);
     $("logoutBtn").addEventListener("click", logout);
+
+    $("addSubjectBtn").addEventListener("click", addSubject);
+$("deleteSubjectBtn").addEventListener("click", deleteSubject);
 
     $("checkBtn").addEventListener("click", checkAnswer);
     $("analyzeBtn").addEventListener("click", analyze);
