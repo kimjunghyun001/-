@@ -18,6 +18,10 @@ import { fileURLToPath } from "url";
 dotenv.config();
 
 const app = express();
+let aiStats = {
+    total: 0,
+    mediumUsed: 0
+};
 console.log("🔥 서버 새 버전 실행");
 const PORT = Number(process.env.PORT || 3000);
 
@@ -37,7 +41,7 @@ if (!fs.existsSync(dbPath)) {
 }
 
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
@@ -89,6 +93,437 @@ function safeText(value) {
     return String(value || "").trim();
 }
 
+function normalizeAnswer(value) {
+    let text = safeText(value)
+        .toLowerCase()
+        .trim();
+
+    // 앞의 "정답:", "답:" 제거
+    text = text.replace(/^(정답|답)\s*[:：]?\s*/g, "");
+
+    // 객관식 원문자 → 일반 숫자
+    const circledNumberMap = {
+        "①": "1",
+        "②": "2",
+        "③": "3",
+        "④": "4",
+        "⑤": "5",
+        "⑥": "6",
+        "⑦": "7",
+        "⑧": "8",
+        "⑨": "9"
+    };
+
+    const firstChar = text.charAt(0);
+
+    if (circledNumberMap[firstChar]) {
+        // "②", "② 이산화탄소" 모두 "2"로 통일
+        return circledNumberMap[firstChar];
+    }
+
+    // "2번", "2번 이산화탄소" → "2"
+    const choiceMatch = text.match(/^([1-9])\s*번(?:\s|$)/);
+
+    if (choiceMatch) {
+        return choiceMatch[1];
+    }
+
+    // 단순 변수형 답: "x=4", "y = 7" → "4", "7"
+const variableAnswerMatch = text.match(/^[a-z]\s*=\s*(.+)$/i);
+
+if (variableAnswerMatch) {
+    text = variableAnswerMatch[1].trim();
+}
+
+text = text
+    .replace(/\s+/g, "")
+    .replace(/,/g, "")
+    .replace(/[°º]+$/g, "")
+    .replace(/[.。]+$/g, "")
+    .trim();
+
+    // 분수: "1/2", "2/4" → "0.5"
+const fractionMatch = text.match(/^(-?\d+)\s*\/\s*(-?\d+)$/);
+
+if (fractionMatch) {
+    const numerator = Number(fractionMatch[1]);
+    const denominator = Number(fractionMatch[2]);
+
+    if (denominator !== 0) {
+        text = String(numerator / denominator);
+    }
+}
+
+// 퍼센트: "50%" → "0.5"
+const percentMatch = text.match(/^(-?\d+(?:\.\d+)?)%$/);
+
+if (percentMatch) {
+    const percentValue = Number(percentMatch[1]);
+
+    if (Number.isFinite(percentValue)) {
+        text = String(percentValue / 100);
+    }
+}
+
+// 숫자 + 선택적 단위의 불필요한 소수점 0 제거
+const numericUnitMatch = text.match(
+    /^(-?\d+(?:\.\d+)?)([a-z%²³]*)$/i
+);
+
+if (numericUnitMatch) {
+    const number = Number(numericUnitMatch[1]);
+    const unit = numericUnitMatch[2];
+
+    if (Number.isFinite(number)) {
+        text = String(number) + unit;
+    }
+}
+
+return text;
+}
+
+function parseComparableQuantity(value) {
+    let text = safeText(value)
+        .toLowerCase()
+        .replace(/\s+/g, "")
+        .replace(/,/g, "")
+        .trim();
+
+    // 지원 단위
+    const unitMatch = text.match(
+        /(mm|cm|km|mg|kg|ml|m|g|l)$/
+    );
+
+    if (!unitMatch) return null;
+
+    const unit = unitMatch[1];
+
+    // 뒤의 단위를 제거해서 숫자 부분만 가져오기
+    const numberText = text.slice(0, -unit.length);
+
+    let number = null;
+
+    // 분수 + 단위: 1/4m, 2/5kg 등
+    const fractionMatch = numberText.match(
+        /^(-?\d+)\/(-?\d+)$/
+    );
+
+    if (fractionMatch) {
+        const numerator = Number(fractionMatch[1]);
+        const denominator = Number(fractionMatch[2]);
+
+        if (denominator === 0) {
+            return null;
+        }
+
+        number = numerator / denominator;
+    } else {
+        // 일반 숫자 + 단위: 0.25m, 25cm 등
+        number = Number(numberText);
+    }
+
+    if (!Number.isFinite(number)) {
+        return null;
+    }
+
+    const unitTable = {
+        mm: { type: "length", factor: 0.001 },
+        cm: { type: "length", factor: 0.01 },
+        m:  { type: "length", factor: 1 },
+        km: { type: "length", factor: 1000 },
+
+        mg: { type: "mass", factor: 0.001 },
+        g:  { type: "mass", factor: 1 },
+        kg: { type: "mass", factor: 1000 },
+
+        ml: { type: "volume", factor: 0.001 },
+        l:  { type: "volume", factor: 1 }
+    };
+
+    const info = unitTable[unit];
+
+    if (!info) {
+        return null;
+    }
+
+    return {
+        type: info.type,
+        value: number * info.factor
+    };
+}
+
+function getChoiceMap(problem = "") {
+    const text = safeText(problem);
+
+    const symbols = ["①", "②", "③", "④", "⑤"];
+    const map = {};
+
+    for (let i = 0; i < symbols.length; i++) {
+        const symbol = symbols[i];
+
+        const start = text.indexOf(symbol);
+        if (start === -1) continue;
+
+        let end = text.length;
+
+        for (let j = i + 1; j < symbols.length; j++) {
+            const next = text.indexOf(symbols[j], start + 1);
+
+            if (next !== -1) {
+                end = next;
+                break;
+            }
+        }
+
+        let value = text
+            .slice(start + symbol.length, end)
+            .trim();
+
+        // 줄바꿈 뒤에 불필요한 내용이 붙는 경우 방지
+        value = value.split("\n")[0].trim();
+
+        if (value) {
+            map[symbol] = value;
+            map[String(i + 1)] = value;
+            map[`${i + 1}번`] = value;
+        }
+    }
+
+    return map;
+}
+
+function parseNumberWithKoreanCounter(value) {
+    const text = normalizeAnswer(value);
+
+    const match = text.match(
+        /^(-?\d+(?:\.\d+)?)(개|명|권|자루|마리|대|병|잔|장|켤레|벌|채|송이|포기|봉지|상자|통|팩|회|번)$/
+    );
+
+    if (!match) return null;
+
+    const number = Number(match[1]);
+
+    if (!Number.isFinite(number)) {
+        return null;
+    }
+
+    return {
+        value: number,
+        counter: match[2]
+    };
+}
+
+function answersEquivalent(a, b, problem = "") {
+    const normalizedA = normalizeAnswer(a);
+    const normalizedB = normalizeAnswer(b);
+
+    if (!normalizedA || !normalizedB) {
+        return false;
+    }
+
+    // 1. 기존 정규화만으로 같은 경우
+    if (normalizedA === normalizedB) {
+        return true;
+    }
+
+        // 숫자 ↔ 숫자+한국어 개수 단위 비교
+    const koreanCounterA = parseNumberWithKoreanCounter(a);
+    const koreanCounterB = parseNumberWithKoreanCounter(b);
+
+    const plainNumberA =
+        /^-?\d+(?:\.\d+)?$/.test(normalizedA)
+            ? Number(normalizedA)
+            : null;
+
+    const plainNumberB =
+        /^-?\d+(?:\.\d+)?$/.test(normalizedB)
+            ? Number(normalizedB)
+            : null;
+
+    if (
+        koreanCounterA &&
+        plainNumberB !== null &&
+        koreanCounterA.value === plainNumberB
+    ) {
+        return true;
+    }
+
+    if (
+        koreanCounterB &&
+        plainNumberA !== null &&
+        koreanCounterB.value === plainNumberA
+    ) {
+        return true;
+    }
+
+    // 2. 단위 동치 비교
+    const quantityA = parseComparableQuantity(a);
+    const quantityB = parseComparableQuantity(b);
+
+    if (
+        quantityA &&
+        quantityB &&
+        quantityA.type === quantityB.type &&
+        Math.abs(quantityA.value - quantityB.value) < 1e-9
+    ) {
+        return true;
+    }
+
+    // 3. 객관식 선택지 ↔ 실제 값 비교
+    const choiceMap = getChoiceMap(problem);
+
+    const rawA = safeText(a).trim();
+    const rawB = safeText(b).trim();
+
+    const choiceValueA = choiceMap[rawA];
+    const choiceValueB = choiceMap[rawB];
+
+    // A가 ①/1번 등이고 B가 실제 선택지 값
+    if (
+        choiceValueA &&
+        answersEquivalent(choiceValueA, b, "")
+    ) {
+        return true;
+    }
+
+    // B가 ①/1번 등이고 A가 실제 선택지 값
+    if (
+        choiceValueB &&
+        answersEquivalent(a, choiceValueB, "")
+    ) {
+        return true;
+    }
+
+    // 둘 다 선택지 표현
+    if (
+        choiceValueA &&
+        choiceValueB &&
+        answersEquivalent(choiceValueA, choiceValueB, "")
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+function ensureCorrectChoice(problem, correctAnswer) {
+    if (!problem || !correctAnswer) return problem;
+
+    const choiceRegex = /([①②③④⑤])\s*([^①②③④⑤\n]+)/g;
+    const choices = [];
+
+    let match;
+
+    while ((match = choiceRegex.exec(problem)) !== null) {
+        choices.push({
+            symbol: match[1],
+            value: match[2].trim(),
+            full: match[0]
+        });
+    }
+
+    // 객관식이 아니면 그대로
+    if (choices.length < 2) {
+        return problem;
+    }
+
+    // 비교용 정답
+    let comparableCorrectAnswer = safeText(correctAnswer);
+
+    // AI가 "② 선택지 문장"처럼 반환한 경우
+    // 해당 번호의 실제 선택지 내용만 가져옴
+    const answerSymbolMatch =
+        comparableCorrectAnswer.match(/^([①②③④⑤])/);
+
+    if (answerSymbolMatch) {
+        const symbol = answerSymbolMatch[1];
+
+        const matchedChoice = choices.find(
+            (choice) => choice.symbol === symbol
+        );
+
+        if (matchedChoice) {
+            comparableCorrectAnswer = matchedChoice.value;
+        }
+    }
+
+    // 이미 실제 정답이 선택지에 있으면 수정 안 함
+    const hasCorrectChoice = choices.some((choice) =>
+        answersEquivalent(
+            choice.value,
+            comparableCorrectAnswer,
+            problem
+        )
+    );
+
+    if (hasCorrectChoice) {
+        console.log("SIMILAR CHOICE OK:", {
+            correctAnswer,
+            comparableCorrectAnswer
+        });
+
+        return problem;
+    }
+
+    // 정답 위치가 매번 같지 않도록 선택지 하나 결정
+    const targetIndex =
+        Math.abs(
+            [...String(problem)].reduce(
+                (sum, ch) => sum + ch.charCodeAt(0),
+                0
+            )
+        ) % choices.length;
+
+    const target = choices[targetIndex];
+
+    const replacement =
+        `${target.symbol} ${comparableCorrectAnswer}`;
+
+    const fixedProblem = problem.replace(
+        target.full,
+        replacement
+    );
+
+    console.warn("SIMILAR CHOICE FIXED:", {
+        correctAnswer,
+        comparableCorrectAnswer,
+        oldChoice: target.full,
+        newChoice: replacement
+    });
+
+    return fixedProblem;
+}
+
+function compareAnswers(aiAnswer, userCorrectAnswer, problem = "") {
+    const ai = normalizeAnswer(aiAnswer);
+    const user = normalizeAnswer(userCorrectAnswer);
+
+    if (!ai) {
+        return {
+            verification: "uncertain",
+            warning: "AI가 문제의 정답을 확정하지 못했습니다."
+        };
+    }
+
+    if (!user) {
+        return {
+            verification: "uncertain",
+            warning: `입력한 정답이 없습니다. AI 검증 정답: ${safeText(aiAnswer)}`
+        };
+    }
+
+   if (answersEquivalent(aiAnswer, userCorrectAnswer, problem)) {
+        return {
+            verification: "match",
+            warning: ""
+        };
+    }
+
+    return {
+        verification: "mismatch",
+        warning: `⚠ 입력한 정답을 다시 확인해 주세요. AI 검증 정답: ${safeText(aiAnswer)}`
+    };
+}
 function normalizeEmail(email) {
     return safeText(email).toLowerCase();
 }
@@ -125,8 +560,15 @@ function getPlanRule(plan) {
 function ensureUserShape(user) {
     if (!Array.isArray(user.notes)) user.notes = [];
     if (!Array.isArray(user.solvedNotes)) user.solvedNotes = [];
-    if (!user.analysisCache || typeof user.analysisCache !== "object") user.analysisCache = {};
-    if (!user.advancedAnswerMap) user.advancedAnswerMap = {};
+    if (!Array.isArray(user.trashNotes)) user.trashNotes = [];
+
+    if (!user.analysisCache || typeof user.analysisCache !== "object") {
+        user.analysisCache = {};
+    }
+
+    if (!user.advancedAnswerMap) {
+        user.advancedAnswerMap = {};
+    }
 
     if (!Array.isArray(user.subjects) || user.subjects.length === 0) {
     user.subjects = [...DEFAULT_SUBJECTS];
@@ -164,6 +606,35 @@ function analysisKey(subject, problem, userAnswer, correctAnswer, plan) {
 
 function advancedProblemKey(subject, problem) {
     return `${subject}::${problem}`.toLowerCase();
+}
+
+function permanentlyCleanupNote(user, note) {
+    if (!note) return;
+
+    const cacheTarget =
+        `::${note.subject}::${note.problem}::`;
+
+    Object.keys(user.analysisCache || {}).forEach((key) => {
+        if (key.includes(cacheTarget)) {
+            delete user.analysisCache[key];
+        }
+    });
+
+    const advancedKey =
+        advancedProblemKey(note.subject, note.problem);
+
+    user.usageAdvanced.usedKeys =
+        (user.usageAdvanced.usedKeys || [])
+            .filter((key) => key !== advancedKey);
+
+    if (note.advancedProblem) {
+        delete user.advancedAnswerMap[note.advancedProblem];
+    }
+
+    // 휴지통 항목 자체가 응용문제인 경우에도 정답 기록 제거
+    if (note.sourceType === "advanced" && note.problem) {
+        delete user.advancedAnswerMap[note.problem];
+    }
 }
 
 function shiftNumber(value, amount) {
@@ -321,59 +792,491 @@ function makeFallbackAnalysis(problem, userAnswer, correctAnswer, plan) {
     };
 }
 
-function buildAnalyzePrompt(problem, userAnswer, correctAnswer, plan) {
+function sanitizeReason(userAnswer, verifiedAnswer) {
+    return `입력한 답(${userAnswer})은 확인된 정답(${verifiedAnswer})과 일치하지 않습니다. 문제의 핵심 조건과 풀이 과정을 다시 확인해 보세요.`;
+}
+
+function buildAnalyzePrompt(problem, userAnswer, verifiedAnswer, plan) {
     const similarCount = getPlanRule(plan).similarCount;
 
     const planGuide =
         plan === "free"
-            ? "reason, concept, solution은 각각 한국어 1문장, 50자 이내."
-            : plan === "premium5900"
-            ? "reason, concept, solution은 각각 한국어 1~2문장, 짧고 분명하게."
-            : "reason, concept, solution은 각각 한국어 1~2문장으로 정확하게.";
+            ? "concept는 핵심 개념을 1문장으로 작성하고, solution은 정답에 도달하는 핵심 과정이 빠지지 않게 간결하게 작성한다."
+            : "concept는 핵심 개념을 1문장으로 작성한다. solution은 정답에 도달하는 핵심 과정과 최종 답을 최대 2문장으로 작성한다.";
+
+const similarRoleGuide =
+    (similarCount === 1
+        ? `- similarProblem1: 원문과 같은 핵심 개념, 해결 방법, 난이도를 유지하고 숫자나 핵심 단어만 바꾼 쌍둥이 문제로 만든다.`
+        : similarCount === 2
+        ? `- similarProblem1: 원문과 같은 핵심 개념, 해결 방법, 난이도를 유지하고 숫자나 핵심 단어만 바꾼 쌍둥이 문제로 만든다.
+- similarProblem2: 같은 핵심 개념과 난이도를 유지하면서 질문 방식이나 선택지 구조를 가볍게 바꾼다.`
+        : `- similarProblem1: 원문과 같은 핵심 개념, 해결 방법, 난이도를 유지하고 숫자나 핵심 단어만 바꾼 쌍둥이 문제로 만든다.
+- similarProblem2: 같은 핵심 개념과 난이도를 유지하면서 질문 방식이나 선택지 구조를 가볍게 바꾼다.
+- similarProblem3: 같은 핵심 개념이 시험에서 흔히 출제되는 대표적인 표준 유형으로 만든다. 실제 기출문제를 그대로 복제하지 않는다.`)
+    + `
+- 다양성보다 문제와 정답의 정확성을 우선한다.
+- 변형 때문에 문제가 복잡하거나 불확실해지면 더 단순하게 만든다.
+- 유사문제가 객관식이면 similarAnswer는 반드시 해당 유사문제의 실제 정답 선택지 내용을 그대로 반환한다.
+- 정답 선택지의 표현을 요약하거나 바꿔 쓰거나 동의어로 변경하지 않는다.
+- 예: 정답 선택지가 "③ 회사가 보유한 재고상품"이면 similarAnswer는 "회사가 보유한 재고상품"으로 반환한다.
+- 객관식이 아니라면 similarAnswer에는 실제 정답을 반환한다.`;
+    const similarJson =
+        similarCount === 1
+            ? `"similarProblem1": "",
+  "similarAnswer1": ""`
+            : similarCount === 2
+            ? `"similarProblem1": "",
+  "similarAnswer1": "",
+  "similarProblem2": "",
+  "similarAnswer2": ""`
+            : `"similarProblem1": "",
+  "similarAnswer1": "",
+  "similarProblem2": "",
+  "similarAnswer2": "",
+  "similarProblem3": "",
+  "similarAnswer3": ""`;
 
     return `
-문제: ${problem}
-학생의 답: ${userAnswer}
-사용자가 입력한 정답: ${correctAnswer}
+문제:
+${problem}
 
-먼저 문제를 직접 풀어서 실제 정답을 판단해라.
-사용자가 입력한 정답을 무조건 믿지 마라.
+검증된 정답:
+${verifiedAnswer}
 
-검증 규칙:
-- AI가 판단한 정답과 사용자가 입력한 정답이 같으면 verification은 "match"
-- 서로 다르면 verification은 "mismatch"
-- 문제 정보가 부족하거나 복수 정답 가능성이 있으면 verification은 "uncertain"
-- mismatch이면 warning에 "입력한 정답이 실제 정답과 다를 수 있습니다. 정답을 다시 확인해 주세요." 작성
-- match이면 warning은 빈 문자열
-- uncertain이면 warning에 "문제 정보가 부족하거나 정답을 확정하기 어렵습니다." 작성
-- aiAnswer에는 AI가 판단한 최종 정답만 짧게 작성
-- 긴 사고 과정은 출력하지 말 것
+학생 답:
+${userAnswer}
 
-학생의 오답을 분석해라.
-${planGuide}
+먼저 문제의 분야와 문제 유형을 파악한 뒤 그 분야에 맞는 방법으로 문제를 독립적으로 해결한다.
+검증된 정답은 설명의 최종 일치 여부를 확인하는 기준으로 사용한다.
 
-반드시 아래 JSON 형식만 출력해라.
+작성 규칙:
+- 학교 교과목에 한정하지 않는다.
+- 자격증, 전공, 기술, 프로그래밍, 경제, 회계, 역사, 언어 등 다양한 학습 문제를 문제 자체의 분야에 맞게 처리한다.
+- concept에는 이 문제를 해결하는 데 실제로 필요한 핵심 개념, 원리, 정의, 규칙 또는 판단 기준을 작성한다.
+- solution에는 문제 유형에 맞는 해결 과정을 작성한다.
+- 계산 문제는 필요한 식, 계산, 단위와 조건을 확인한다.
+- 개념·이론 문제는 관련 정의나 원리를 근거로 판단한다.
+- 객관식 문제는 선택지의 의미를 확인하고 정답이 되는 근거를 설명한다.
+- 프로그래밍 문제는 코드의 동작, 조건, 실행 결과 또는 관련 개념을 근거로 판단한다.
+- 전문·자격증 문제는 해당 분야의 정의, 규칙, 공식 또는 원리를 우선 적용한다.
+- 문제에 없는 사실, 조건, 수치 또는 학생의 실수 원인을 임의로 만들어내지 않는다.
+- solution의 최종 결론은 반드시 검증된 정답 ${verifiedAnswer}와 일치해야 한다.
+- 일치하지 않으면 내부적으로 다시 판단한 뒤 작성한다.
+- Latex와 백슬래시는 쓰지 말고 수식은 일반 텍스트로 작성한다.
+- ${planGuide}
+
+유사문제 규칙:
+- 모든 유사문제는 원문을 해결하는 데 필요한 핵심 개념을 그대로 사용한다.
+- 문제의 분야와 학습 수준을 유지한다.
+
+- similarProblem1은 원문과 매우 비슷하게 만들어 기본 개념을 반복 연습하게 한다.
+- similarProblem1은 숫자, 변수, 대상 또는 핵심 단어 정도만 바꿀 수 있다.
+
+- similarProblem2는 같은 핵심 개념을 유지하면서 질문 방식, 조건, 사례 또는 선택지 구조 중 일부를 바꾼다.
+- similarProblem2는 원문이나 similarProblem1과 단순히 숫자나 변수 이름만 바꾼 복제품이 되지 않도록 한다.
+
+- similarProblem3은 같은 핵심 개념이 실제 시험에서 주로 사용되는 대표적인 표준 문제 형태로 만든다.
+- similarProblem3은 가능하면 원문 및 similarProblem1과 질문 형태까지 완전히 같게 만들지 않는다.
+
+- 계산 문제는 수치나 조건을 바꿀 수 있다.
+- 개념 문제는 사례, 상황, 질문 방식 또는 선택지를 문제의 역할에 맞게 바꿀 수 있다.
+- 프로그래밍 및 전문 분야 문제는 실제 해당 분야에서 사용하는 규칙과 자연스러운 문제 형식을 유지한다.
+
+- 새로운 핵심 개념을 추가하지 않는다.
+- 원문보다 지나치게 어렵게 만들지 않는다.
+- 다양성보다 문제의 성립과 정답의 정확성을 우선한다.
+- 각 문제는 주어진 정보만으로 답이 하나로 결정되어야 한다.
+- 객관식이면 선택지를 모두 포함하고 실제 정답이 선택지에 정확히 하나 있어야 한다.
+- 각 유사문제를 내부적으로 직접 해결하여 정답이 성립하는지 확인한다.
+- 각 문제를 내부적으로 직접 풀어 확인한 실제 정답을 corresponding similarAnswer에 작성한다.
+- similarAnswer에는 객관식 번호가 아니라 실제 정답 선택지 내용을 작성한다.
+${similarRoleGuide}
+
+아래 JSON만 출력한다:
 {
-  "aiAnswer": "",
-  "verification": "match",
-  "warning": "",
-  "reason": "",
   "concept": "",
   "solution": "",
-  "similarProblems": []
+  ${similarJson}
 }
-
-공통 규칙:
-- JSON 이외의 글은 출력하지 말 것
-- aiAnswer는 최종 정답만 작성
-- reason, concept, solution은 서로 다른 내용으로 작성
-- similarProblems는 정확히 ${similarCount}개 작성
-- 유사문제에는 정답이나 해설을 넣지 말 것
 `;
 }
 
-async function requestOpenAIAnalyze(problem, userAnswer, correctAnswer, plan, apiKey) {
-    const maxTokens = plan === "free" ? 220 : plan === "premium5900" ? 320 : 420;
+async function requestOpenAIAnswer(problem, apiKey) {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+     model: "gpt-5.4-mini",
+
+          response_format: {
+    type: "json_object"
+},
+
+messages: [
+    {
+        role: "system",
+        content: `
+너는 문제의 실제 정답을 독립적으로 구하는 정답 검증 AI다.
+학생의 답은 보지 않고 문제만 풀어라.
+
+규칙:
+1. 문제의 분야와 의도를 파악하고 적절한 공식·정의·조건을 적용한다.
+2. 단순 계산뿐 아니라 단위, 조건, 수량의 의미를 정확히 구분한다.
+3. 답을 구한 뒤 계산과 조건을 한 번 검산한다.
+4. 공식 사용 시 변수와 문제의 수량이 올바르게 대응하는지 확인한다.
+5. 전문 분야 문제는 일반 수학 공식을 기계적으로 적용하지 말고 해당 분야의 정의와 관계를 따른다.
+6. 충분한 근거가 있을 때만 confident=true로 한다.
+7. 확실하지 않으면 답을 추측하지 말고 confident=false로 한다.
+`
+    },
+    {
+        role: "user",
+        content: `
+[문제]
+${problem}
+
+문제를 처음부터 풀어 최종 정답을 구하고, 같은 문제를 다시 검산하여 checkAnswer를 결정해라.
+
+규칙:
+- aiAnswer에는 첫 계산의 최종 정답만 작성한다.
+- checkAnswer에는 재검산한 최종 정답만 작성한다.
+- 숫자 문제는 가능한 한 숫자와 필요한 단위만 작성한다.
+- 두 결과를 억지로 같게 만들지 않는다.
+- 두 결과가 다르거나 정답을 확정할 수 없으면 confident=false로 한다.
+- 풀이와 설명은 출력하지 않는다.
+- 반드시 JSON만 출력한다.
+
+출력 형식:
+{
+  "aiAnswer": "",
+  "checkAnswer": "",
+  "confident": true
+}
+`
+    }
+],
+
+// temperature: 0,
+max_completion_tokens: 800
+        })
+    });
+
+    const data = await response.json();
+    console.log("ANSWER FINISH:", data?.choices?.[0]?.finish_reason);
+console.log("ANSWER USAGE:", data?.usage);
+console.log("ANSWER MESSAGE:", data?.choices?.[0]?.message);
+
+    if (!response.ok) {
+        throw new Error(JSON.stringify(data));
+    }
+
+    const content = data?.choices?.[0]?.message?.content;
+
+    if (!content) {
+        throw new Error("정답 검증 AI의 응답이 없습니다.");
+    }
+
+    console.log("ANSWER RAW:", content);
+
+    let parsed;
+
+    try {
+        parsed = JSON.parse(content);
+    } catch {
+        throw new Error("정답 검증 AI의 JSON 형식이 올바르지 않습니다.");
+    }
+
+return {
+    aiAnswer: safeText(parsed.aiAnswer),
+    checkAnswer: safeText(parsed.checkAnswer),
+    confident: parsed.confident === true
+};
+}
+
+async function requestOpenAIAnswerReview(problem, apiKey) {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+           model: "gpt-5.4-mini",
+          reasoning_effort: "medium",
+
+           response_format: {
+    type: "json_object"
+},
+
+            messages: [
+                {
+                    role: "system",
+                    content: `
+너는 시험 문제의 정답을 독립적으로 검산하는 AI다.
+
+다른 AI가 어떤 답을 냈는지 알 수 없으며,
+오직 문제 자체만 보고 처음부터 다시 풀어야 한다.
+
+중요 규칙:
+1. 먼저 문제의 분야와 문제 유형을 파악한다.
+2. 주어진 숫자가 무엇의 개수인지 정확히 구분한다.
+   예: 꼭짓점 수, 모서리 수, 면 수, 삼각형 수를 서로 혼동하지 않는다.
+3. 공식에 변수를 대입하기 전에 각 변수의 의미가 문제의 조건과 일치하는지 확인한다.
+4. 특정 전문 분야나 자격증 문제라면 해당 분야의 정의와 관계를 고려한다.
+5. 겉보기에 계산 가능한 숫자라고 해서 임의의 공식을 적용하지 않는다.
+6. 계산 후 다시 검산한다.
+7. 확실하지 않으면 추측하지 말고 confident=false로 한다.
+8. JSON 이외의 내용은 출력하지 않는다.
+`
+                },
+             {
+    role: "user",
+    content: `
+[문제]
+${problem}
+
+[1차 AI 후보 정답]
+
+
+이 문제를 처음부터 독립적으로 다시 풀어라.
+
+규칙:
+- 후보 정답을 정답이라고 가정하지 않는다.
+- 먼저 문제의 과목, 분야, 문제 유형을 파악한다.
+- 해당 분야에서 필요한 정의, 공식, 법칙, 조건을 판단한다.
+- 수학 문제뿐 아니라 고등학교 교과 문제와 자격증 전문 문제의 분야별 지식을 고려한다.
+- 계산 문제는 직접 다시 계산하고 검산한다.
+- 객관식이면 각 선택지와 계산 또는 추론 결과를 검토한다.
+- 문제 정보가 부족하거나 정답을 충분히 확정할 수 없으면 confident를 false로 한다.
+
+출력 규칙:
+- 반드시 JSON 객체 하나만 출력한다.
+- reviewAnswer에는 최종 정답만 넣는다.
+- 숫자 정답이면 숫자만 넣는다.
+- 객관식이면 최종 선택지만 넣는다.
+- 단답형이면 필요한 최종 답만 짧게 넣는다.
+- reviewAnswer에 풀이, 설명, 공식, 이유를 넣지 않는다.
+- JSON 이외의 텍스트를 출력하지 않는다.
+
+출력 구조:
+{
+    "reviewAnswer": "",
+    "confident": false
+}
+`
+}
+            ],
+           max_completion_tokens: 800
+        })
+    });
+
+    const data = await response.json();
+    console.log("REVIEW FINISH:", data?.choices?.[0]?.finish_reason);
+console.log("REVIEW USAGE:", data?.usage);
+console.log("REVIEW MESSAGE:", data?.choices?.[0]?.message);
+
+    if (!response.ok) {
+        throw new Error(JSON.stringify(data));
+    }
+
+    const content = data?.choices?.[0]?.message?.content;
+
+    if (!content) {
+        throw new Error("정답 검산 AI의 응답이 없습니다.");
+    }
+
+    console.log("ANSWER REVIEW RAW:", content);
+
+    let parsed;
+
+    try {
+        parsed = JSON.parse(content);
+    } catch {
+        throw new Error("정답 검산 AI의 JSON 형식이 올바르지 않습니다.");
+    }
+
+    return {
+        reviewAnswer: safeText(parsed.reviewAnswer),
+        confident: parsed.confident === true
+    };
+}
+
+async function requestOpenAIAnalyze(problem, userAnswer, correctAnswer, plan, apiKey) { aiStats.total += 1;
+    const maxTokens = plan === "free" ? 400 : plan === "premium5900" ? 600 : 800;
+
+const answerResult = await requestOpenAIAnswer(problem, apiKey);
+
+console.log("ANSWER 1 RESULT:", answerResult);
+
+const firstAnswer = normalizeAnswer(answerResult.aiAnswer);
+const checkAnswer = normalizeAnswer(answerResult.checkAnswer);
+const enteredCorrectAnswer = normalizeAnswer(correctAnswer);
+
+let verifiedAnswer = "";
+
+// 1차 none으로 끝낼 수 있는 조건
+const firstPassed =
+    answerResult.confident &&
+    firstAnswer &&
+    checkAnswer &&
+    enteredCorrectAnswer &&
+    answersEquivalent(answerResult.aiAnswer, answerResult.checkAnswer, problem) &&
+    answersEquivalent(answerResult.aiAnswer, correctAnswer, problem);
+
+if (firstPassed) {
+    // AI 1차 답 = AI 자체검산 답 = 사용자가 입력한 정답
+    // 세 개가 모두 같으므로 medium 호출 생략
+    verifiedAnswer = answerResult.aiAnswer;
+
+    console.log(
+        "ANSWER VERIFIED BY NONE:",
+        verifiedAnswer
+    );
+} else {
+    // 하나라도 다르면 2차 medium 검증
+    aiStats.mediumUsed += 1;
+
+    console.log("ANSWER NEEDS MEDIUM REVIEW:", {
+        aiAnswer: answerResult.aiAnswer,
+        checkAnswer: answerResult.checkAnswer,
+        enteredCorrectAnswer: correctAnswer,
+        confident: answerResult.confident
+    });
+
+    const reviewResult = await requestOpenAIAnswerReview(
+        problem,
+        apiKey
+    );
+
+    console.log(
+        "ANSWER REVIEW RESULT:",
+        reviewResult
+    );
+
+    const reviewedAnswer = normalizeAnswer(
+        reviewResult.reviewAnswer
+    );
+
+    if (!reviewResult.confident || !reviewedAnswer) {
+        throw new Error(
+            "2차 medium AI도 문제의 정답을 확정하지 못했습니다."
+        );
+    }
+
+// if (normalizeAnswer(answerResult.aiAnswer) !== reviewedAnswer) {
+//     throw new Error(
+//         `정답 검증 AI끼리 결과가 다릅니다. 1차: ${answerResult.aiAnswer}, 2차: ${reviewResult.reviewAnswer}`
+//     );
+// }
+
+const normalizedFirst = normalizeAnswer(answerResult.aiAnswer);
+const normalizedReview = reviewedAnswer;
+const normalizedEntered = normalizeAnswer(correctAnswer);
+
+if (
+    answersEquivalent(
+        reviewResult.reviewAnswer,
+        correctAnswer,
+        problem
+    )
+) {
+    // 2차 검증 결과가 사용자가 입력한 정답과 같음
+    // → 2차 결과를 최종 정답으로 사용
+    verifiedAnswer = reviewResult.reviewAnswer;
+
+    console.log(
+        "ANSWER VERIFIED BY REVIEW + ENTERED:",
+        verifiedAnswer
+    );
+
+} else if (
+    answersEquivalent(
+        reviewResult.reviewAnswer,
+        answerResult.aiAnswer,
+        problem
+    )
+) {
+    // 1차와 2차 AI가 서로 같음
+    // → AI 둘이 같은 답을 냈으므로 그 답을 채택
+    // → 사용자가 입력한 정답이 잘못됐을 가능성이 있음
+    verifiedAnswer = reviewResult.reviewAnswer;
+
+    console.warn("ENTERED ANSWER MAY BE WRONG:", {
+        enteredCorrectAnswer: correctAnswer,
+        aiVerifiedAnswer: verifiedAnswer
+    });
+
+} else {
+    // 1차 none / 입력 정답 / 2차 medium이 서로 다르더라도
+    // medium이 확신한 답을 냈다면 medium 결과를 최종 정답으로 사용
+    if (reviewResult.confident === true && reviewResult.reviewAnswer) {
+        verifiedAnswer = reviewResult.reviewAnswer;
+
+        console.warn("ANSWER CONFLICT - MEDIUM OVERRIDE:", {
+            enteredCorrectAnswer: correctAnswer,
+            firstAnswer: answerResult.aiAnswer,
+            reviewAnswer: reviewResult.reviewAnswer,
+            verifiedAnswer
+        });
+    } else {
+        console.warn("ANSWER CONFLICT - UNCERTAIN:", {
+            enteredCorrectAnswer: correctAnswer,
+            firstAnswer: answerResult.aiAnswer,
+            reviewAnswer: reviewResult.reviewAnswer
+        });
+
+        throw new Error(
+            "정답 검증 결과가 서로 달라 정답을 안전하게 확정할 수 없습니다."
+        );
+    }
+}
+
+}   
+
+
+console.log("AI COST STATS:", {
+    total: aiStats.total,
+    mediumUsed: aiStats.mediumUsed,
+    noneOnly: aiStats.total - aiStats.mediumUsed,
+    mediumRate:
+        aiStats.total > 0
+            ? ((aiStats.mediumUsed / aiStats.total) * 100).toFixed(1) + "%"
+            : "0%"
+});
+
+// 검증된 정답과 학생 답이 같으면 오답 분석 AI 호출 생략
+const normalizedUserAnswer = normalizeAnswer(userAnswer);
+const normalizedVerifiedAnswer = normalizeAnswer(verifiedAnswer);
+
+if (
+    normalizedUserAnswer &&
+    normalizedVerifiedAnswer &&
+    normalizedUserAnswer === normalizedVerifiedAnswer
+) {
+    const answerCheck = compareAnswers(
+    verifiedAnswer,
+    correctAnswer,
+    problem
+);
+
+    console.log("USER ANSWER ALREADY CORRECT - SKIP ANALYZE:", {
+        userAnswer,
+        verifiedAnswer
+    });
+
+    return {
+        aiAnswer: verifiedAnswer,
+        verification: answerCheck.verification,
+        warning: answerCheck.warning,
+        reason: "",
+        concept: "",
+        solution: "",
+        similarProblems: []
+    };
+}
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -382,23 +1285,36 @@ async function requestOpenAIAnalyze(problem, userAnswer, correctAnswer, plan, ap
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
+            model: "gpt-5.4-mini",
+reasoning_effort:
+    plan === "free"
+        ? "none"
+        : "medium",
+messages: [
                 {
                     role: "system",
-                    content: "너는 학생용 오답노트 선생님이다. 반드시 JSON만 출력하고 짧고 정확하게 설명한다."
+content: `
+너는 학생용 오답노트 선생님이다.
+검증된 정답을 기준으로만 설명한다.
+검증된 정답과 모순되는 계산이나 공식을 절대 작성하지 않는다.
+설명을 작성한 뒤 계산 결과가 검증된 정답과 일치하는지 내부적으로 검산한다.
+반드시 JSON만 출력한다.
+`
                 },
                 {
                     role: "user",
-                    content: buildAnalyzePrompt(problem, userAnswer, correctAnswer, plan)
+                   content: buildAnalyzePrompt(problem, userAnswer, verifiedAnswer, plan)
                 }
             ],
-           temperature: plan === "free" ? 0.4 : plan === "premium5900" ? 0.55 : 0.65,
-            max_tokens: maxTokens
+max_completion_tokens: 2500
         })
     });
 
     const data = await response.json();
+
+    console.log("ANALYZE FINISH:", data?.choices?.[0]?.finish_reason);
+console.log("ANALYZE USAGE:", data?.usage);
+console.log("ANALYZE MESSAGE:", data?.choices?.[0]?.message);
 
     if (!response.ok) {
         throw new Error(JSON.stringify(data));
@@ -417,44 +1333,69 @@ async function requestOpenAIAnalyze(problem, userAnswer, correctAnswer, plan, ap
 }
 
 console.log("AI parsed:", parsed);
-console.log("similarProblems:", parsed.similarProblems);
+console.log("SIMILAR ANSWERS:", {
+    similarAnswer1: parsed.similarAnswer1,
+    similarAnswer2: parsed.similarAnswer2,
+    similarAnswer3: parsed.similarAnswer3
+});
+console.log("similarProblem1:", parsed.similarProblem1);
+console.log("similarProblem2:", parsed.similarProblem2);
+console.log("similarProblem3:", parsed.similarProblem3);
 
-    const similarCount = getPlanRule(plan).similarCount;
-    let similarProblems = Array.isArray(parsed.similarProblems) ? parsed.similarProblems : [];
-   similarProblems = similarProblems
-    .map((v) => {
-        if (typeof v === "string") return safeText(v);
+ const similarCount = getPlanRule(plan).similarCount;
 
-        if (v && typeof v === "object") {
-            return safeText(
-                v.problem ||
-                v.question ||
-                v.text ||
-                v.content ||
-                v.prompt
-            );
-        }
+let similarProblems = [
+    ensureCorrectChoice(
+        safeText(parsed.similarProblem1),
+        safeText(parsed.similarAnswer1)
+    ),
 
-        return "";
-    })
-    .filter(Boolean);
+    ensureCorrectChoice(
+        safeText(parsed.similarProblem2),
+        safeText(parsed.similarAnswer2)
+    ),
 
-    if (similarProblems.length < similarCount) {
-        similarProblems = [...similarProblems, ...makeFallbackSimilarProblems(problem, similarCount)].slice(0, similarCount);
-    }
-return {
-    aiAnswer: safeText(parsed.aiAnswer) || "",
-    verification: ["match", "mismatch", "uncertain"].includes(
-        parsed.verification
+    ensureCorrectChoice(
+        safeText(parsed.similarProblem3),
+        safeText(parsed.similarAnswer3)
     )
-        ? parsed.verification
-        : "uncertain",
-    warning: safeText(parsed.warning) || "",
+]
+    .filter(Boolean)
+    .slice(0, similarCount);
 
-    reason:
-        safeText(parsed.reason) ||
-        "분석 결과가 없습니다.",
+if (similarProblems.length < similarCount) {
+    similarProblems = [
+        ...similarProblems,
+        ...makeFallbackSimilarProblems(problem, similarCount)
+    ].slice(0, similarCount);
+}
 
+const aiAnswer = verifiedAnswer;
+const answerCheck = compareAnswers(
+    verifiedAnswer,
+    correctAnswer,
+    problem
+);
+
+console.log(
+    "SANITIZED REASON:",
+    answersEquivalent(userAnswer, verifiedAnswer, problem)
+        ? ""
+        : sanitizeReason(userAnswer, verifiedAnswer)
+);
+return {
+    aiAnswer,
+
+    verification: answerCheck.verification,
+    warning: answerCheck.warning,
+
+reason: answersEquivalent(
+    userAnswer,
+    verifiedAnswer,
+    problem
+)
+    ? ""
+    : sanitizeReason(userAnswer, verifiedAnswer),
     concept:
         safeText(parsed.concept) ||
         "개념 설명이 없습니다.",
@@ -477,7 +1418,8 @@ async function requestOpenAIAdvanced(problem, apiKey) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            model: "gpt-4o-mini",
+          model: "gpt-5.4-mini",
+          reasoning_effort: "low",
             messages: [
                 {
                     role: "system",
@@ -488,16 +1430,20 @@ async function requestOpenAIAdvanced(problem, apiKey) {
                     content: buildAdvancedPrompt(problem)
                 }
             ],
-            temperature: 0.7,
-            max_tokens: 220
+            // temperature: 0.7,
+            max_completion_tokens: 1200,
         })
     });
 
-    const data = await response.json();
+const data = await response.json();
 
-    if (!response.ok) {
-        throw new Error(JSON.stringify(data));
-    }
+console.log("ADVANCED FINISH:", data?.choices?.[0]?.finish_reason);
+console.log("ADVANCED USAGE:", data?.usage);
+console.log("ADVANCED MESSAGE:", data?.choices?.[0]?.message);
+
+if (!response.ok) {
+    throw new Error(JSON.stringify(data));
+}
 
     const content = data?.choices?.[0]?.message?.content;
     if (!content) {
@@ -523,16 +1469,95 @@ async function requestOpenAIAdvanced(problem, apiKey) {
 
 function buildAdvancedPrompt(problem) {
     return `
-다음 문제를 바탕으로 같은 개념의 응용문제를 하나 만들어라.
+다음 원본 문제를 분석한 뒤, 같은 핵심 개념을 사용하는 응용문제 1개를 만들어라.
 
 원본 문제:
 ${problem}
 
-반드시 JSON만 출력한다.
+목표:
+학생이 원본 문제의 답이나 풀이를 단순히 외운 것이 아니라,
+핵심 개념을 새로운 조건이나 상황에서도 적용할 수 있는지 확인한다.
+
+먼저 내부적으로 다음을 판단한다.
+- 이 문제가 어떤 분야의 문제인지 파악한다.
+- 문제 해결에 실제로 필요한 핵심 개념, 공식, 원리, 규칙을 파악한다.
+- 원본 문제의 난이도와 문제 형식을 파악한다.
+- 원본 문제를 직접 풀어 어떤 사고 과정이 필요한지 확인한다.
+
+응용문제 생성 규칙:
+
+1. 반드시 원본 문제와 같은 핵심 개념을 사용한다.
+
+2. 원본의 숫자, 이름, 단어만 바꾼 문제를 만들지 않는다.
+
+3. 다음 중 최소 하나 이상을 의미 있게 변화시킨다.
+- 주어진 조건
+- 문제 상황
+- 묻는 대상
+- 정보가 제시되는 방식
+- 풀이 순서
+- 핵심 개념을 적용해야 하는 위치
+
+4. 원본보다 한 단계 더 생각해야 하지만,
+새로운 핵심 개념을 알아야만 풀 수 있는 문제로 만들지 않는다.
+
+5. 분야에 맞게 응용한다.
+- 수학·과학·전기 등의 계산 문제:
+  단순 수치 변경이 아니라 조건이나 구해야 하는 값을 바꾸는 것을 우선한다.
+- 개념·이론·사회·역사·경제·회계 문제:
+  같은 개념을 새로운 사례나 상황에 적용하도록 만든다.
+- 프로그래밍 문제:
+  같은 문법이나 실행 원리를 유지하면서 코드, 조건 또는 실행 흐름을 변형한다.
+- 전문·자격증 문제:
+  실제 해당 분야에서 사용되는 정의, 규칙, 공식과 현실적인 문제 형식을 유지한다.
+- 언어 문제:
+  같은 문법, 독해 원리 또는 판단 기준을 다른 문장이나 상황에 적용하게 한다.
+
+6. 객관식 원문이라고 해서 반드시 객관식으로 만들 필요는 없다.
+단, 객관식으로 만들 경우 선택지를 모두 작성한다.
+
+7. 객관식 문제라면:
+- 실제 정답이 선택지에 정확히 하나만 존재해야 한다.
+- 정답과 같은 의미의 선택지가 두 개 이상 존재하면 안 된다.
+- 오답 선택지도 문제와 관련 있는 자연스러운 선택지여야 한다.
+
+8. 문제에 필요한 모든 정보는 문제 안에 포함한다.
+외부 자료가 없으면 풀 수 없는 문제를 만들지 않는다.
+
+9. 애매한 표현이나 여러 답이 가능한 조건을 만들지 않는다.
+
+10. 원본 문제보다 지나치게 어렵거나 길게 만들지 않는다.
+
+11. 생성 후 반드시 응용문제를 직접 처음부터 풀어본다.
+
+12. 계산 문제라면 식, 조건, 단위가 서로 맞는지 내부적으로 확인한다.
+
+13. 개념 문제라면 정답이 해당 정의나 원리에 실제로 부합하는지 확인한다.
+
+14. 객관식이라면 모든 선택지를 확인하여 정답이 정확히 하나인지 검산한다.
+
+15. 처음 계산하거나 판단한 정답과 재검산한 정답이 다르면
+문제를 수정하고 다시 검산한다.
+
+16. 문제 자체에 오류가 있거나 정답을 하나로 확정할 수 없다면
+조건이나 선택지를 수정하여 정상적으로 성립하는 문제를 만든다.
+
+17. advancedProblem 안에는 정답, 풀이, 힌트 또는
+정답을 직접 알 수 있는 설명을 넣지 않는다.
+
+answer 규칙:
+- 생성한 응용문제를 직접 풀어서 얻은 실제 최종 정답을 작성한다.
+- 숫자 문제는 필요한 경우 단위를 포함한다.
+- 객관식 문제는 정답 선택지의 실제 내용을 작성한다.
+- "정답", "답", "answer" 같은 임시 문구를 넣지 않는다.
+- 풀이 과정이나 설명은 answer에 넣지 않는다.
+
+반드시 아래 JSON 객체 하나만 출력한다.
+JSON 밖의 설명이나 다른 텍스트는 절대 출력하지 않는다.
 
 {
-  "advancedProblem": "응용문제",
-  "answer": "정답"
+  "advancedProblem": "",
+  "answer": ""
 }
 `;
 }
@@ -592,8 +1617,9 @@ function buildDashboard(user) {
 
     
     const wrongNotes = [...user.notes];
-    const solvedNotes = [...user.solvedNotes];
-    const planRule = getPlanRule(user.plan);
+const solvedNotes = [...user.solvedNotes];
+const trashNotes = [...user.trashNotes];
+const planRule = getPlanRule(user.plan);
     
 
     const recommendedReviews = [...wrongNotes]
@@ -630,6 +1656,7 @@ function buildDashboard(user) {
         usageAdvanced: user.usageAdvanced,
         wrongNotes,
         solvedNotes,
+        trashNotes,
         analysisCache: user.analysisCache,
         recommendedReviews,
         weakestSubject: maxWrong > 0 ? weakestSubject : null,
@@ -695,6 +1722,7 @@ app.post("/api/auth/register", async (req, res) => {
             usageAdvanced: { date: todayString(), count: 0, usedKeys: [] },
             notes: [],
             solvedNotes: [],
+            trashNotes: [],
             analysisCache: {},
             subjects: [...DEFAULT_SUBJECTS]
         };
@@ -865,6 +1893,137 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
     });
 });
 
+app.post("/api/extract-problem-image", requireAuth, async (req, res) => {
+    try {
+        const { imageData } = req.body;
+
+        if (!imageData || typeof imageData !== "string") {
+            return res.status(400).json({
+                error: "사진을 선택해주세요."
+            });
+        }
+
+        const apiKey = process.env.OPENAI_API_KEY;
+
+        if (!apiKey) {
+            return res.status(500).json({
+                error: "OpenAI API 키가 없습니다."
+            });
+        }
+
+        const response = await fetch(
+            "https://api.openai.com/v1/chat/completions",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${apiKey}`
+                },
+
+                body: JSON.stringify({
+                    model: "gpt-5.4-mini",
+
+                    messages: [
+                        {
+                            role: "user",
+                            content: [
+                             {
+    type: "text",
+    text:
+`사진 속 학습 문제를 정확하게 읽어 문제 전체를 추출해라.
+
+규칙:
+- 문제 번호, 본문, 수식, 조건을 모두 포함한다.
+- 객관식이면 선택지 ① ② ③ ④ ⑤를 반드시 모두 포함한다.
+- 선택지는 생략하거나 요약하지 않는다.
+- [4점] 같은 배점은 있어도 되고 없어도 된다.
+- 풀이, 해설, 정답은 작성하지 않는다.
+- 수학식의 지수, 분수, 루트, 각도, π, 괄호, 부호를 최대한 정확하게 유지한다.
+- 사진에 문제가 하나라면 그 문제 전체만 반환한다.
+- 설명 없이 JSON만 출력한다.
+
+{
+  "problem": ""
+}`
+},
+{
+    type: "image_url",
+    image_url: {
+        url: imageData
+    }
+}
+                            ]
+                        }
+                    ],
+
+                    max_completion_tokens: 800
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        console.log(
+            "IMAGE FINISH:",
+            data?.choices?.[0]?.finish_reason
+        );
+        console.log(
+            "IMAGE USAGE:",
+            data?.usage
+        );
+        console.log(
+            "IMAGE MESSAGE:",
+            data?.choices?.[0]?.message
+        );
+
+        if (!response.ok) {
+            console.error("IMAGE ERROR:", data);
+
+            return res.status(502).json({
+                error: "사진을 읽지 못했습니다."
+            });
+        }
+
+        const content =
+            data?.choices?.[0]?.message?.content;
+
+        if (!content) {
+            return res.status(502).json({
+                error: "사진에서 문제를 찾지 못했습니다."
+            });
+        }
+
+        let parsed;
+
+        try {
+            parsed = JSON.parse(content);
+        } catch {
+            return res.status(502).json({
+                error: "사진 분석 결과를 읽지 못했습니다."
+            });
+        }
+
+        const problem = safeText(parsed.problem);
+
+        if (!problem) {
+            return res.status(422).json({
+                error: "사진에서 문제를 찾지 못했습니다."
+            });
+        }
+
+        return res.json({
+            problem
+        });
+
+    } catch (error) {
+        console.error("IMAGE EXTRACT ERROR:", error);
+
+        return res.status(500).json({
+            error: "사진 처리 중 서버 오류가 발생했습니다."
+        });
+    }
+});
+
 app.post("/api/plan/test-change", requireAuth, (req, res) => {
     const { plan } = req.body;
 
@@ -925,16 +2084,46 @@ const cleanSourceType =
             return res.status(400).json({ error: "과목, 문제, 내 답, 정답을 모두 입력해주세요." });
         }
         
-        if (cleanSourceType === "advanced") {
+function extractChoiceNumber(text) {
+    const s = safeText(text);
+
+    const circled = s.match(/[①②③④⑤⑥⑦⑧⑨⑩]/);
+    if (circled) return circled[0];
+
+    const normal = s.match(/^\s*([1-9]|10)(?:번|\s|[.)])/);
+    if (normal) {
+        const map = {
+            "1": "①",
+            "2": "②",
+            "3": "③",
+            "4": "④",
+            "5": "⑤",
+            "6": "⑥",
+            "7": "⑦",
+            "8": "⑧",
+            "9": "⑨",
+            "10": "⑩"
+        };
+        return map[normal[1]] || "";
+    }
+
+    return "";
+}
+
+if (cleanSourceType === "advanced") {
     const expectedAdvancedAnswer =
         safeText(user.advancedAnswerMap?.[cleanProblem]);
 
     if (
         expectedAdvancedAnswer &&
-        cleanCorrectAnswer !== expectedAdvancedAnswer
+        !answersEquivalent(
+            cleanCorrectAnswer,
+            expectedAdvancedAnswer,
+            cleanProblem
+        )
     ) {
         return res.status(400).json({
-           error: `입력한 정답이 응용문제의 실제 정답과 다릅니다. 이 문제의 정답은 ${expectedAdvancedAnswer} 입니다.`
+            error: `입력한 정답이 응용문제의 실제 정답과 다릅니다. 이 문제의 정답은 ${expectedAdvancedAnswer} 입니다.`
         });
     }
 }
@@ -950,11 +2139,11 @@ if (mathCheck.detectable && !mathCheck.isValid) {
     });
 }
 
-if (cleanUserAnswer === cleanCorrectAnswer) {
-    return res.status(400).json({
-        error: "정답인 상태에서는 AI 분석을 하지 않습니다."
-    });
-}
+// if (cleanUserAnswer === cleanCorrectAnswer) {
+//     return res.status(400).json({
+//         error: "정답인 상태에서는 AI 분석을 하지 않습니다."
+//     });
+// }
 
         const rule = getPlanRule(user.plan);
 
@@ -965,14 +2154,25 @@ if (cleanUserAnswer === cleanCorrectAnswer) {
 
         const key = analysisKey(cleanSubject, cleanProblem, cleanUserAnswer, cleanCorrectAnswer, user.plan);
 
-        if (user.analysisCache[key]) {
-            return res.json({
-                message: "이미 분석한 입력입니다. 저장된 결과를 다시 보여줍니다. 차감되지 않았습니다.",
-                analysis: user.analysisCache[key],
-                cached: true,
-                dashboard: buildDashboard(user)
-            });
-        }
+        const isInTrash = user.trashNotes.some(
+    (note) =>
+        note.subject === cleanSubject &&
+        note.problem === cleanProblem &&
+        answersEquivalent(
+            note.correctAnswer,
+            cleanCorrectAnswer,
+            cleanProblem
+        )
+);
+
+if (user.analysisCache[key] && !isInTrash) {
+    return res.json({
+        message: "이미 분석한 입력입니다. 저장된 결과를 다시 보여줍니다. 차감되지 않았습니다.",
+        analysis: user.analysisCache[key],
+        cached: true,
+        dashboard: buildDashboard(user)
+    });
+}
 
         // if (!rule.duplicateAnalyze) {
         //     const exists = user.notes.some(
@@ -995,65 +2195,193 @@ if (cleanUserAnswer === cleanCorrectAnswer) {
                 ...makeFallbackAnalysis(cleanProblem, cleanUserAnswer, cleanCorrectAnswer, user.plan),
                 advancedProblem: "아직 응용문제가 없습니다."
             };
-        } else {
-            try {
-                const result = await requestOpenAIAnalyze(cleanProblem, cleanUserAnswer, cleanCorrectAnswer, user.plan, apiKey);
-                analysis = {
-                    ...result,
-                    advancedProblem: "아직 응용문제가 없습니다."
-                };
-            } catch (error) {
-                console.error("AI fallback:", error.message);
-                analysis = {
-                    ...makeFallbackAnalysis(cleanProblem, cleanUserAnswer, cleanCorrectAnswer, user.plan),
-                    advancedProblem: "아직 응용문제가 없습니다."
-                };
-            }
-        }
+      } else {
+    try {
+        const result = await requestOpenAIAnalyze(
+            cleanProblem,
+            cleanUserAnswer,
+            cleanCorrectAnswer,
+            user.plan,
+            apiKey
+        );
+
+        analysis = {
+            ...result,
+            advancedProblem: "아직 응용문제가 없습니다."
+        };
+
+    } catch (error) {
+        console.error("AI fallback:", error.message);
+
+  // 문제 자체의 정보가 부족하거나 AI가 정답을 확정할 수 없는 경우
+if (
+    error.message.includes(
+        "2차 medium AI도 문제의 정답을 확정하지 못했습니다"
+    )
+) {
+    return res.status(409).json({
+        error:
+            "문제의 조건이나 정보가 부족하여 정답을 확정할 수 없습니다. 문제와 정답을 다시 확인해주세요.",
+        verification: "uncertain",
+        reason: "insufficient_information"
+    });
+}
+
+// 1차와 2차 검증 결과가 서로 충돌하는 경우
+if (
+    error.message.includes(
+        "정답 검증 결과가 서로 달라"
+    )
+) {
+    return res.status(409).json({
+        error:
+            "AI 정답 검증 결과가 서로 달라 정답을 안전하게 확정할 수 없습니다. 문제와 입력한 정답을 다시 확인해주세요.",
+        verification: "uncertain",
+        reason: "answer_conflict"
+    });
+}
+
+        analysis = {
+            ...makeFallbackAnalysis(
+                cleanProblem,
+                cleanUserAnswer,
+                cleanCorrectAnswer,
+                user.plan
+            ),
+            advancedProblem: "아직 응용문제가 없습니다."
+        };
+    }
+}
 
         user.usageAi.count += 1;
         user.analysisCache[key] = analysis;
 
-        const identity = noteKey(cleanSubject, cleanProblem, cleanCorrectAnswer);
-        const existingIndex = user.notes.findIndex((note) => noteKey(note.subject, note.problem, note.correctAnswer) === identity);
+const identity = noteKey(
+    cleanSubject,
+    cleanProblem,
+    cleanCorrectAnswer
+);
 
-        if (existingIndex === -1) {
-            if (rule.storageLimit !== Infinity && user.notes.length >= rule.storageLimit) {
-                return res.status(403).json({
-                    error: `현재 요금제 저장 한도(${rule.storageLimit}개)를 넘었습니다. 오래된 오답을 지우거나 상위 요금제로 바꿔야 합니다.`
-                });
-            }
+const isCorrect = answersEquivalent(
+    cleanUserAnswer,
+    analysis.aiAnswer || cleanCorrectAnswer,
+    cleanProblem
+);
 
-            user.notes.push({
-                id: randomUUID(),
-                subject: cleanSubject,
-                problem: cleanProblem,
-                userAnswer: cleanUserAnswer,
-                correctAnswer: cleanCorrectAnswer,
-                reason: analysis.reason,
-                concept: analysis.concept,
-                solution: analysis.solution,
-                similarProblems: analysis.similarProblems || [],
-                advancedProblem: analysis.advancedProblem || "",
-              sourceType: cleanSourceType,
-                repeatWrongCount: 1,
-                createdAt: now(),
-                updatedAt: now()
+// ==============================
+// 맞은 문제 → 복습완료
+// ==============================
+if (isCorrect) {
+    const wrongIndex = user.notes.findIndex(
+        (note) =>
+            noteKey(
+                note.subject,
+                note.problem,
+                note.correctAnswer
+            ) === identity
+    );
+
+    let solvedNote = {
+        id: randomUUID(),
+        subject: cleanSubject,
+        problem: cleanProblem,
+        userAnswer: cleanUserAnswer,
+        correctAnswer: cleanCorrectAnswer,
+        reason: analysis.reason || "",
+        concept: analysis.concept || "",
+        solution: analysis.solution || "",
+        similarProblems: analysis.similarProblems || [],
+        advancedProblem: analysis.advancedProblem || "",
+        sourceType: cleanSourceType,
+        repeatWrongCount: 1,
+        createdAt: now(),
+        updatedAt: now(),
+        solvedAt: now()
+    };
+
+    // 기존 오답을 다시 풀어서 맞힌 경우
+    if (wrongIndex !== -1) {
+        solvedNote = {
+            ...user.notes[wrongIndex],
+            userAnswer: cleanUserAnswer,
+            sourceType: cleanSourceType,
+            updatedAt: now(),
+            solvedAt: now()
+        };
+
+        user.notes.splice(wrongIndex, 1);
+    }
+
+    const solvedExists = user.solvedNotes.some(
+        (note) =>
+            noteKey(
+                note.subject,
+                note.problem,
+                note.correctAnswer
+            ) === identity
+    );
+
+    if (!solvedExists) {
+        user.solvedNotes.push(solvedNote);
+    }
+
+} else {
+
+    // ==============================
+    // 틀린 문제 → 오답 리스트
+    // ==============================
+    const existingIndex = user.notes.findIndex(
+        (note) =>
+            noteKey(
+                note.subject,
+                note.problem,
+                note.correctAnswer
+            ) === identity
+    );
+
+    if (existingIndex === -1) {
+        if (
+            rule.storageLimit !== Infinity &&
+            user.notes.length >= rule.storageLimit
+        ) {
+            return res.status(403).json({
+                error: `현재 요금제 저장 한도(${rule.storageLimit}개)를 넘었습니다. 오래된 오답을 지우거나 상위 요금제로 바꿔야 합니다.`
             });
-        } else {
-            user.notes[existingIndex] = {
-                ...user.notes[existingIndex],
-                userAnswer: cleanUserAnswer,
-                reason: analysis.reason,
-                concept: analysis.concept,
-                solution: analysis.solution,
-                similarProblems: analysis.similarProblems || [],
-                advancedProblem: analysis.advancedProblem || "",
-                   sourceType: cleanSourceType,
-                updatedAt: now(),
-                repeatWrongCount: (user.notes[existingIndex].repeatWrongCount || 1) + 1
-            };
         }
+
+        user.notes.push({
+            id: randomUUID(),
+            subject: cleanSubject,
+            problem: cleanProblem,
+            userAnswer: cleanUserAnswer,
+            correctAnswer: cleanCorrectAnswer,
+            reason: analysis.reason,
+            concept: analysis.concept,
+            solution: analysis.solution,
+            similarProblems: analysis.similarProblems || [],
+            advancedProblem: analysis.advancedProblem || "",
+            sourceType: cleanSourceType,
+            repeatWrongCount: 1,
+            createdAt: now(),
+            updatedAt: now()
+        });
+
+    } else {
+        user.notes[existingIndex] = {
+            ...user.notes[existingIndex],
+            userAnswer: cleanUserAnswer,
+            reason: analysis.reason,
+            concept: analysis.concept,
+            solution: analysis.solution,
+            similarProblems: analysis.similarProblems || [],
+            advancedProblem: analysis.advancedProblem || "",
+            sourceType: cleanSourceType,
+            updatedAt: now(),
+            repeatWrongCount:
+                (user.notes[existingIndex].repeatWrongCount || 1) + 1
+        };
+    }
+}
 
         writeDb(req.db);
 
@@ -1137,23 +2465,31 @@ if (!apiKey) {
     }
 }
 
-if (advancedProblem && advancedAnswer) {
-    user.advancedAnswerMap[advancedProblem] = advancedAnswer;
+// 문제 또는 정답 생성에 실패하면 사용 기록을 남기지 않는다.
+if (!advancedProblem || !advancedAnswer) {
+    console.error("ADVANCED GENERATION FAILED - usage not charged");
+
+    return res.status(502).json({
+        error: "응용문제를 생성하지 못했습니다. 다시 시도해주세요. 사용 횟수는 차감되지 않았습니다."
+    });
 }
+
+// 여기부터는 정상 생성 성공
+user.advancedAnswerMap[advancedProblem] = advancedAnswer;
+
+// 성공한 경우에만 사용 횟수와 중복방지 기록 저장
+user.usageAdvanced.count += 1;
+user.usageAdvanced.usedKeys.push(key);
+
+writeDb(req.db);
 
 console.log("advancedAnswerMap =", user.advancedAnswerMap);
 
-
-        user.usageAdvanced.count += 1;
-        user.usageAdvanced.usedKeys.push(key);
-
-        writeDb(req.db);
-
-        return res.json({
-            message: "응용문제를 생성했습니다.",
-            advancedProblem,
-            dashboard: buildDashboard(user)
-        });
+return res.json({
+    message: "응용문제를 생성했습니다.",
+    advancedProblem,
+    dashboard: buildDashboard(user)
+});
     } catch (error) {
         console.error(error);
         return res.status(500).json({ error: "응용문제 생성 중 서버 오류가 발생했습니다." });
@@ -1192,7 +2528,13 @@ app.post("/api/notes/check", requireAuth, (req, res) => {
 
         const identity = noteKey(cleanSubject, cleanProblem, cleanCorrectAnswer);
 
-        if (cleanUserAnswer === cleanCorrectAnswer) {
+        if (
+    answersEquivalent(
+        cleanUserAnswer,
+        cleanCorrectAnswer,
+        cleanProblem
+    )
+) {
             const wrongIndex = user.notes.findIndex((note) => noteKey(note.subject, note.problem, note.correctAnswer) === identity);
 
             let baseNote = {
@@ -1233,7 +2575,7 @@ app.post("/api/notes/check", requireAuth, (req, res) => {
                 message: sourceType === "normal"
                     ? "정답입니다. 복습완료로 이동했습니다."
                     : "추가 문제를 맞혔습니다. 복습완료로 이동했습니다.",
-                clearInputs: true,
+               clearInputs: sourceType !== "similar",
                 dashboard: buildDashboard(user)
             });
         }
@@ -1294,65 +2636,259 @@ app.post("/api/notes/delete", requireAuth, (req, res) => {
 
     ensureUserShape(user);
 
-    const deletedNote = user.notes.find((note) => note.id === id);
+    const note = user.notes.find((item) => item.id === id);
 
-    if (!deletedNote) {
+    if (!note) {
         return res.status(404).json({
             error: "삭제할 오답을 찾을 수 없습니다."
         });
     }
 
-    // 삭제한 문제와 관련된 분석 캐시도 같이 삭제
-    const cachePrefix =
-        `${user.plan}::${deletedNote.subject}::${deletedNote.problem}::`;
-
-    Object.keys(user.analysisCache).forEach((key) => {
-        if (key.startsWith(cachePrefix)) {
-            delete user.analysisCache[key];
-        }
+    user.trashNotes.push({
+        ...note,
+        trashFrom: "wrong",
+        deletedAt: now()
     });
 
-    // 응용문제 생성 기록 삭제
-const advancedKey =
-    advancedProblemKey(deletedNote.subject, deletedNote.problem);
-
-user.usageAdvanced.usedKeys =
-    user.usageAdvanced.usedKeys.filter((key) => key !== advancedKey);
-
-// 생성했던 응용문제의 정답 기록 정리
-if (deletedNote.advancedProblem) {
-    delete user.advancedAnswerMap[deletedNote.advancedProblem];
-}
-
-    // 오답 삭제
-    user.notes = user.notes.filter((note) => note.id !== id);
+    user.notes = user.notes.filter((item) => item.id !== id);
 
     writeDb(req.db);
 
     return res.json({
-        message: "오답을 삭제했습니다.",
+        message: "오답을 휴지통으로 이동했습니다.",
         dashboard: buildDashboard(user)
     });
 });
 
 app.post("/api/notes/clear", requireAuth, (req, res) => {
-    req.currentUser.notes = [];
+    const user = req.currentUser;
+    ensureUserShape(user);
+
+    if (user.notes.length === 0) {
+        return res.json({
+            message: "삭제할 오답이 없습니다.",
+            dashboard: buildDashboard(user)
+        });
+    }
+
+    const deletedAt = now();
+
+    user.trashNotes.push(
+        ...user.notes.map((note) => ({
+            ...note,
+            trashFrom: "wrong",
+            deletedAt
+        }))
+    );
+
+    user.notes = [];
+
     writeDb(req.db);
 
     return res.json({
-        message: "오답 리스트를 전체 삭제했습니다.",
-        dashboard: buildDashboard(req.currentUser)
+        message: "오답 리스트를 휴지통으로 이동했습니다.",
+        dashboard: buildDashboard(user)
     });
 });
 
 app.post("/api/solved/delete", requireAuth, (req, res) => {
     const { id } = req.body;
-    req.currentUser.solvedNotes = req.currentUser.solvedNotes.filter((note) => note.id !== id);
+    const user = req.currentUser;
+
+    ensureUserShape(user);
+
+    const note = user.solvedNotes.find((item) => item.id === id);
+
+    if (!note) {
+        return res.status(404).json({
+            error: "삭제할 복습완료 문제를 찾을 수 없습니다."
+        });
+    }
+
+    user.trashNotes.push({
+        ...note,
+        trashFrom: "solved",
+        deletedAt: now()
+    });
+
+    user.solvedNotes =
+        user.solvedNotes.filter((item) => item.id !== id);
+
     writeDb(req.db);
 
     return res.json({
-        message: "복습완료 문제를 삭제했습니다.",
-        dashboard: buildDashboard(req.currentUser)
+        message: "복습완료 문제를 휴지통으로 이동했습니다.",
+        dashboard: buildDashboard(user)
+    });
+});
+
+app.post("/api/solved/clear", requireAuth, (req, res) => {
+    const user = req.currentUser;
+    ensureUserShape(user);
+
+    if (user.solvedNotes.length === 0) {
+        return res.json({
+            message: "삭제할 복습완료 문제가 없습니다.",
+            dashboard: buildDashboard(user)
+        });
+    }
+
+    const deletedAt = now();
+
+    user.trashNotes.push(
+        ...user.solvedNotes.map((note) => ({
+            ...note,
+            trashFrom: "solved",
+            deletedAt
+        }))
+    );
+
+    user.solvedNotes = [];
+
+    writeDb(req.db);
+
+    return res.json({
+        message: "복습완료 리스트를 휴지통으로 이동했습니다.",
+        dashboard: buildDashboard(user)
+    });
+});
+
+app.post("/api/trash/restore", requireAuth, (req, res) => {
+    const { id } = req.body;
+    const user = req.currentUser;
+
+    ensureUserShape(user);
+
+    const trashNote =
+        user.trashNotes.find((item) => item.id === id);
+
+    if (!trashNote) {
+        return res.status(404).json({
+            error: "휴지통에서 문제를 찾을 수 없습니다."
+        });
+    }
+
+    const {
+        trashFrom,
+        deletedAt,
+        ...restoredNote
+    } = trashNote;
+
+    if (trashFrom === "wrong") {
+        const exists = user.notes.some(
+            (item) =>
+                noteKey(
+                    item.subject,
+                    item.problem,
+                    item.correctAnswer
+                ) ===
+                noteKey(
+                    restoredNote.subject,
+                    restoredNote.problem,
+                    restoredNote.correctAnswer
+                )
+        );
+
+        const rule = getPlanRule(user.plan);
+
+        if (
+            !exists &&
+            rule.storageLimit !== Infinity &&
+            user.notes.length >= rule.storageLimit
+        ) {
+            return res.status(403).json({
+                error: `현재 요금제 저장 한도(${rule.storageLimit}개)를 넘었습니다.`
+            });
+        }
+
+        if (!exists) {
+            user.notes.push(restoredNote);
+        }
+
+    } else if (trashFrom === "solved") {
+
+        const exists = user.solvedNotes.some(
+            (item) =>
+                noteKey(
+                    item.subject,
+                    item.problem,
+                    item.correctAnswer
+                ) ===
+                noteKey(
+                    restoredNote.subject,
+                    restoredNote.problem,
+                    restoredNote.correctAnswer
+                )
+        );
+
+        if (!exists) {
+            user.solvedNotes.push(restoredNote);
+        }
+
+    } else {
+        return res.status(400).json({
+            error: "원래 위치를 확인할 수 없습니다."
+        });
+    }
+
+    user.trashNotes =
+        user.trashNotes.filter((item) => item.id !== id);
+
+    writeDb(req.db);
+
+    return res.json({
+        message:
+            trashFrom === "wrong"
+                ? "오답 리스트로 복구했습니다."
+                : "복습완료 리스트로 복구했습니다.",
+        dashboard: buildDashboard(user)
+    });
+});
+
+app.post("/api/trash/delete", requireAuth, (req, res) => {
+    const { id } = req.body;
+    const user = req.currentUser;
+
+    ensureUserShape(user);
+
+    const note =
+        user.trashNotes.find((item) => item.id === id);
+
+    if (!note) {
+        return res.status(404).json({
+            error: "영구삭제할 문제를 찾을 수 없습니다."
+        });
+    }
+
+    permanentlyCleanupNote(user, note);
+
+    user.trashNotes =
+        user.trashNotes.filter((item) => item.id !== id);
+
+    writeDb(req.db);
+
+    return res.json({
+        message: "문제를 영구삭제했습니다.",
+        dashboard: buildDashboard(user)
+    });
+});
+
+app.post("/api/trash/clear", requireAuth, (req, res) => {
+    const user = req.currentUser;
+
+    ensureUserShape(user);
+
+    user.trashNotes.forEach((note) => {
+        permanentlyCleanupNote(user, note);
+    });
+
+    user.trashNotes = [];
+
+    writeDb(req.db);
+
+    return res.json({
+        message: "휴지통을 비웠습니다.",
+        dashboard: buildDashboard(user)
     });
 });
 

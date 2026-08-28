@@ -134,17 +134,38 @@ function renderCurrentAnalysis() {
     updateUpsellTexts(state.similarProblems || []);
 }
 
-function updateUpsellTexts(similarProblems) {
+function updateUpsellTexts(similarProblems = []) {
     if (!dashboardState) return;
 
     const plan = dashboardState.user.plan;
+    const hasAnalysis = !!currentAnalysisState;
+    const hasSimilarProblems =
+        Array.isArray(similarProblems) && similarProblems.length > 0;
+
+    // 분석 결과 자체가 없으면 업셀 문구도 전부 제거
+    if (!hasAnalysis) {
+        $("analysisUpsellText").textContent = "";
+        $("similarUpsellText").textContent = "";
+        return;
+    }
 
     if (plan === "free") {
-        $("analysisUpsellText").textContent = "유료 플랜에서는 유사문제 개수와 복습 기능이 더 늘어납니다.";
-        $("similarUpsellText").textContent = similarProblems.length >= 1 ? "5900원부터 유사문제가 더 늘어납니다." : "";
+        $("analysisUpsellText").textContent =
+            "유료 플랜에서는 유사문제 개수와 복습 기능이 더 늘어납니다.";
+
+        $("similarUpsellText").textContent =
+            hasSimilarProblems
+                ? "5900원부터 유사문제가 더 늘어납니다."
+                : "";
+
     } else if (plan === "premium5900") {
         $("analysisUpsellText").textContent = "";
-        $("similarUpsellText").textContent = "8900원에서는 응용문제와 약한 과목 분석이 추가됩니다.";
+
+        $("similarUpsellText").textContent =
+            hasSimilarProblems
+                ? "8900원에서는 응용문제와 약한 과목 분석이 추가됩니다."
+                : "";
+
     } else {
         $("analysisUpsellText").textContent = "";
         $("similarUpsellText").textContent = "";
@@ -207,11 +228,25 @@ function renderSimilarProblems(items) {
             ""
         );
             $("userAnswer").value = "";
-            $("correctAnswer").value = "";
-            activeModeState = { type: "similar", sourceIndex: idx };
-            updateModeUI();
-            showMessage("유사문제를 불러왔습니다. 정답을 직접 입력하고 채점하세요.", "blue");
-            $("problem").focus();
+$("correctAnswer").value = "";
+
+activeModeState = {
+    type: "similar",
+    sourceIndex: idx
+};
+
+// 이전 문제의 분석 결과 제거
+currentAnalysisState = null;
+
+renderCurrentAnalysis();
+updateModeUI();
+
+showMessage(
+    "유사문제를 불러왔습니다. 정답을 직접 입력하고 채점하세요.",
+    "blue"
+);
+
+$("problem").focus();
         });
     });
 }
@@ -398,6 +433,90 @@ function renderSolvedList() {
     });
 }
 
+function renderTrashList() {
+    const list = $("trashList");
+
+    if (!list) return;
+
+    const notes = [...(dashboardState?.trashNotes || [])]
+        .sort(
+            (a, b) =>
+                (b.deletedAt || 0) -
+                (a.deletedAt || 0)
+        );
+
+    list.innerHTML = "";
+
+    if (notes.length === 0) {
+        list.innerHTML = "<li>휴지통이 비어 있습니다.</li>";
+        return;
+    }
+
+    notes.forEach((note) => {
+        const typeLabel =
+            note.sourceType === "similar"
+                ? "유사문제"
+                : note.sourceType === "advanced"
+                ? "응용문제"
+                : "기본 문제";
+
+        const fromLabel =
+            note.trashFrom === "solved"
+                ? "복습완료"
+                : "오답";
+
+        const deletedDate =
+            note.deletedAt
+                ? new Date(note.deletedAt).toLocaleString()
+                : "-";
+
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+            <div><strong>원래 위치:</strong> ${escapeHtml(fromLabel)}</div>
+            <div><strong>구분:</strong> ${escapeHtml(typeLabel)}</div>
+            <div><strong>과목:</strong> ${escapeHtml(note.subject)}</div>
+            <div><strong>문제:</strong> ${escapeHtml(note.problem)}</div>
+            <div><strong>삭제일:</strong> ${escapeHtml(deletedDate)}</div>
+
+            <div class="item-buttons">
+                <button
+                    type="button"
+                    data-trash-restore="${note.id}">
+                    복구
+                </button>
+
+                <button
+                    type="button"
+                    class="delete-item-btn"
+                    data-trash-delete="${note.id}">
+                    영구삭제
+                </button>
+            </div>
+        `;
+
+        list.appendChild(li);
+    });
+
+    list
+        .querySelectorAll("[data-trash-restore]")
+        .forEach((btn) => {
+            btn.addEventListener("click", () => {
+                restoreTrashNote(btn.dataset.trashRestore);
+            });
+        });
+
+    list
+        .querySelectorAll("[data-trash-delete]")
+        .forEach((btn) => {
+            btn.addEventListener("click", () => {
+                permanentlyDeleteTrashNote(
+                    btn.dataset.trashDelete
+                );
+            });
+        });
+}
+
 function renderRecommendedReviews() {
     const box = $("recommendedReviewBox");
 
@@ -574,8 +693,9 @@ const storageText =
     renderSummaryStats();
     renderSubjectStats();
     renderWrongList();
-    renderSolvedList();
-    updateCounts();
+renderSolvedList();
+renderTrashList();
+updateCounts();
     updateModeUI();
 }
 
@@ -590,14 +710,86 @@ async function api(url, method = "GET", body = null) {
         options.body = JSON.stringify(body);
     }
 
-    const res = await fetch(url, options);
+    let res;
+
+    try {
+        res = await fetch(url, options);
+    } catch (error) {
+        throw new Error(
+            "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+        );
+    }
+
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-        throw new Error(data.error || "요청 중 오류가 발생했습니다.");
+        const error = new Error(
+            data.error || "요청 중 오류가 발생했습니다."
+        );
+
+        error.status = res.status;
+        error.verification = data.verification || "";
+        error.data = data;
+
+        throw error;
     }
 
     return data;
+}
+
+async function extractProblemFromImage(file) {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+        showMessage("이미지 파일을 선택해주세요.", "red");
+        return;
+    }
+
+    try {
+        $("selectProblemImageBtn").disabled = true;
+        $("imageLoadingText").textContent = "사진을 읽는 중입니다...";
+
+        const imageData = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+
+            reader.readAsDataURL(file);
+        });
+
+        const data = await api(
+            "/api/extract-problem-image",
+            "POST",
+            { imageData }
+        );
+
+        if (!data.problem) {
+            throw new Error("사진에서 문제를 찾지 못했습니다.");
+        }
+
+        $("problem").value = data.problem;
+
+        showMessage(
+            "사진에서 문제를 가져왔습니다. 내용을 확인하고 필요하면 수정해주세요.",
+            "green"
+        );
+
+        $("problem").focus();
+
+    } catch (error) {
+        showMessage(
+            error.message || "사진을 읽지 못했습니다.",
+            "red"
+        );
+
+    } finally {
+        $("selectProblemImageBtn").disabled = false;
+        $("imageLoadingText").textContent = "";
+
+        // 같은 사진을 다시 선택해도 change 이벤트가 발생하도록 초기화
+        $("problemImageInput").value = "";
+    }
 }
 
 function showLoginTab() {
@@ -816,19 +1008,41 @@ console.log("분석 직전 activeModeState:", activeModeState);
 });
 
         currentAnalysisState = data.analysis;
-        renderDashboard(data.dashboard);
-        applyPlanToCurrentAnalysis();
-        showMessage(data.message, "green");
- } catch (error) {
+renderDashboard(data.dashboard);
+applyPlanToCurrentAnalysis();
+showMessage(data.message, "green");
+
+// 분석 완료 후 AI 분석 결과로 자동 이동
+requestAnimationFrame(() => {
+    const resultSection = document.querySelector("#verificationBox");
+
+    if (resultSection) {
+        resultSection.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }
+});
+} catch (error) {
     currentAnalysisState = null;
 
     renderCurrentAnalysis();
     updateModeUI();
 
+    if (error.verification === "uncertain") {
+        showMessage(
+            "AI가 문제의 정답을 확실하게 검증하지 못했습니다. 문제 또는 입력한 정답을 다시 확인해 주세요. 분석 횟수는 차감되지 않았습니다.",
+            "red"
+        );
+        return;
+    }
+
     showMessage(error.message, "red");
+
 } finally {
     setLoading(false);
 }
+    setLoading(false);
 }
 
 async function generateAdvancedProblem() {
@@ -884,10 +1098,6 @@ async function checkAnswer() {
 
   const sourceType = activeModeState?.type || "normal";
 
-    currentAnalysisState = null;
-    renderCurrentAnalysis();
-    updateModeUI();
-
 
 try {
         const data = await api("/api/notes/check", "POST", {
@@ -913,6 +1123,28 @@ try {
     }
 }
 
+async function deleteSolvedNote(id) {
+    const ok = confirm(
+        "이 복습완료 문제를 삭제할까요?\n삭제한 문제는 휴지통에서 복구할 수 있습니다."
+    );
+
+    if (!ok) return;
+
+    try {
+        const data = await api(
+            "/api/solved/delete",
+            "POST",
+            { id }
+        );
+
+        renderDashboard(data.dashboard);
+        showMessage(data.message, "blue");
+
+    } catch (error) {
+        showMessage(error.message, "red");
+    }
+}
+
 async function deleteWrongNote(id) {
     try {
         const data = await api("/api/notes/delete", "POST", { id });
@@ -924,8 +1156,53 @@ async function deleteWrongNote(id) {
 }
 
 async function clearAllWrongNotes() {
+    const ok = confirm(
+        "오답 리스트의 모든 문제를 휴지통으로 이동할까요?"
+    );
+
+    if (!ok) return;
+
     try {
-        const data = await api("/api/notes/clear", "POST");
+        const data = await api(
+            "/api/notes/clear",
+            "POST"
+        );
+
+        renderDashboard(data.dashboard);
+        showMessage(data.message, "blue");
+
+    } catch (error) {
+        showMessage(error.message, "red");
+    }
+}
+
+async function clearAllSolvedNotes() {
+    const ok = confirm(
+        "복습완료 리스트의 모든 문제를 휴지통으로 이동할까요?"
+    );
+
+    if (!ok) return;
+
+    try {
+        const data = await api(
+            "/api/solved/clear",
+            "POST"
+        );
+
+        renderDashboard(data.dashboard);
+        showMessage(data.message, "blue");
+
+    } catch (error) {
+        showMessage(error.message, "red");
+    }
+}
+
+async function clearAllSolvedNotes() {
+    const ok = confirm("복습완료 기록을 모두 삭제할까요?");
+    if (!ok) return;
+
+    try {
+        const data = await api("/api/solved/clear", "POST");
         renderDashboard(data.dashboard);
         showMessage(data.message, "blue");
     } catch (error) {
@@ -933,11 +1210,67 @@ async function clearAllWrongNotes() {
     }
 }
 
-async function deleteSolvedNote(id) {
+async function restoreTrashNote(id) {
     try {
-        const data = await api("/api/solved/delete", "POST", { id });
+        const data = await api(
+            "/api/trash/restore",
+            "POST",
+            { id }
+        );
+
+        renderDashboard(data.dashboard);
+        showMessage(data.message, "green");
+
+    } catch (error) {
+        showMessage(error.message, "red");
+    }
+}
+
+async function permanentlyDeleteTrashNote(id) {
+    const ok = confirm(
+        "이 문제를 영구삭제할까요?\n삭제 후에는 복구할 수 없습니다."
+    );
+
+    if (!ok) return;
+
+    try {
+        const data = await api(
+            "/api/trash/delete",
+            "POST",
+            { id }
+        );
+
         renderDashboard(data.dashboard);
         showMessage(data.message, "blue");
+
+    } catch (error) {
+        showMessage(error.message, "red");
+    }
+}
+
+async function clearTrash() {
+    const notes = dashboardState?.trashNotes || [];
+
+    if (notes.length === 0) {
+        showMessage("휴지통이 이미 비어 있습니다.", "blue");
+        return;
+    }
+
+    const ok = confirm(
+        "휴지통의 모든 문제를 영구삭제할까요?\n이 작업은 되돌릴 수 없습니다."
+    );
+
+    if (!ok) return;
+
+    try {
+        const data = await api(
+            "/api/trash/clear",
+            "POST"
+        );
+
+        renderDashboard(data.dashboard);
+        showMessage(data.message, "blue");
+
     } catch (error) {
         showMessage(error.message, "red");
     }
@@ -1029,6 +1362,25 @@ function toggleSolvedSection() {
     updateSectionToggle("solvedSectionBody", "toggleSolvedBtn", next);
 }
 
+function toggleTrashSection() {
+    const next =
+        !getSectionState(
+            "trashSectionCollapsed",
+            false
+        );
+
+    setSectionState(
+        "trashSectionCollapsed",
+        next
+    );
+
+    updateSectionToggle(
+        "trashSectionBody",
+        "toggleTrashBtn",
+        next
+    );
+}
+
 function applySectionStates() {
     updateSectionToggle(
         "wrongSectionBody",
@@ -1041,6 +1393,14 @@ function applySectionStates() {
         "toggleSolvedBtn",
         getSectionState("solvedSectionCollapsed", false)
     );
+    updateSectionToggle(
+    "trashSectionBody",
+    "toggleTrashBtn",
+    getSectionState(
+        "trashSectionCollapsed",
+        false
+    )
+);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1056,6 +1416,17 @@ $("deleteSubjectBtn").addEventListener("click", deleteSubject);
     $("checkBtn").addEventListener("click", checkAnswer);
     $("analyzeBtn").addEventListener("click", analyze);
     $("generateAdvancedBtn").addEventListener("click", generateAdvancedProblem);
+    $("selectProblemImageBtn").addEventListener("click", () => {
+    $("problemImageInput").click();
+});
+
+$("problemImageInput").addEventListener("change", () => {
+    const file = $("problemImageInput").files?.[0];
+
+    if (file) {
+        extractProblemFromImage(file);
+    }
+});
 
     $("useAdvancedProblemBtn").addEventListener("click", () => {
         const advanced = currentAnalysisState?.advancedProblem;
@@ -1065,11 +1436,23 @@ $("deleteSubjectBtn").addEventListener("click", deleteSubject);
         }
 
         $("problem").value = advanced;
-        $("userAnswer").value = "";
-        $("correctAnswer").value = "";
-        activeModeState = { type: "advanced" };
-        updateModeUI();
-        showMessage("응용문제를 불러왔습니다. 정답을 직접 입력하고 채점하세요.", "blue");
+$("userAnswer").value = "";
+$("correctAnswer").value = "";
+
+activeModeState = {
+    type: "advanced"
+};
+
+// 이전 문제의 분석 결과 제거
+currentAnalysisState = null;
+
+renderCurrentAnalysis();
+updateModeUI();
+
+showMessage(
+    "응용문제를 불러왔습니다. 정답을 직접 입력하고 채점하세요.",
+    "blue"
+);
     });
 
     $("clearInputsBtn").addEventListener("click", () => {
@@ -1087,6 +1470,11 @@ $("deleteSubjectBtn").addEventListener("click", deleteSubject);
     $("plan8900").addEventListener("click", () => changePlan("premium8900"));
     $("resetUsageBtn").addEventListener("click", resetUsage);
     $("clearAllBtn").addEventListener("click", clearAllWrongNotes);
+    $("clearAllSolvedBtn").addEventListener("click", clearAllSolvedNotes);
+$("clearTrashBtn").addEventListener(
+    "click",
+    clearTrash
+);
 
     $("filterSubject").addEventListener("change", () => {
         renderWrongList();
@@ -1105,6 +1493,10 @@ $("deleteSubjectBtn").addEventListener("click", deleteSubject);
 
     $("toggleWrongBtn").addEventListener("click", toggleWrongSection);
     $("toggleSolvedBtn").addEventListener("click", toggleSolvedSection);
+$("toggleTrashBtn").addEventListener(
+    "click",
+    toggleTrashSection
+);
 
     applySectionStates();
     loadMe();
