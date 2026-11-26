@@ -4,3 +4,27 @@ data/users.json
 data/note.json
 data/feedback.json
 db.json
+
+# ScorePath sensitive / generated files (managed block)
+.env.*
+!.env.example
+data/
+node_modules/
+*.bak
+*.tmp
+*.log
+*.zip
+*.zip.*
+ScorePath_backup*/
+ScorePath_patch*/
+ScorePath_launch_beta_bundle*/
+ScorePath_beta_GitHub_prep*/
+scorepath_*_install*.cjs
+scorepath_all_fixes_install*.cjs
+*.db
+sessions/
+coverage/
+
+# ScorePath secrets and backup exclusion (pre-PG)
+*.diff
+ScorePath_prePG_allinone*/

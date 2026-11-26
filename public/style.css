@@ -7,44 +7,579 @@
     color: #111827;
 }
 
+/* =====================================
+   ScorePath 21-127
+   공통 화면 디자인
+===================================== */
+
+:root {
+    --sp-ink: #17233a;
+    --sp-muted: #64748b;
+    --sp-line: #e3eaf5;
+    --sp-blue: #2563eb;
+}
+
+/* =====================================
+   기본 배경
+===================================== */
+
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
-    background: linear-gradient(180deg, #eaf2ff 0%, #f5f8ff 100%);
-    color: #1f2937;
+
+    font-family:
+        "Malgun Gothic",
+        "Apple SD Gothic Neo",
+        Arial,
+        sans-serif;
+
+    background: #f5f7fc;
+
+    color: var(--sp-ink);
+
+    line-height: 1.55;
 }
+
+/* =====================================
+   전체 화면 너비
+===================================== */
 
 .wrap {
-    max-width: 1080px;
-    margin: 40px auto;
-    padding: 20px;
+    max-width: 960px;
+
+    margin: 0 auto;
+
+    padding: 24px 20px 120px;
 }
 
-h1 {
-    text-align: center;
-    margin-bottom: 28px;
-    font-size: 32px;
-    font-weight: 800;
+/* =====================================
+   ScorePath 브랜드
+===================================== */
+
+.scorepath-brand {
+    display: flex;
+
+    align-items: center;
+
+    gap: 14px;
+
+    padding: 6px 2px 23px;
 }
+
+/* 로고 */
+
+.scorepath-brand-icon {
+    display: grid;
+
+    place-items: center;
+
+    width: 48px;
+    height: 48px;
+
+    flex: 0 0 48px;
+
+    border-radius: 15px;
+
+    background: linear-gradient(
+        135deg,
+        #2563eb,
+        #4338ca
+    );
+
+    color: #fff;
+
+    font-size: 27px;
+
+    font-weight: 900;
+}
+
+/* 앱 이름 */
+
+.scorepath-brand-copy h1 {
+    margin: 0;
+
+    font-size: 28px;
+
+    letter-spacing: -0.8px;
+
+    line-height: 1.2;
+}
+
+/* 앱 설명 */
+
+.scorepath-brand-copy p {
+    margin: 4px 0 0;
+
+    color: var(--sp-muted);
+
+    font-size: 13px;
+}
+
+/* =====================================
+   제목 디자인
+===================================== */
 
 h2 {
     margin: 0 0 16px;
-    font-size: 22px;
-    font-weight: 700;
+
+    font-size: 21px;
+
+    font-weight: 800;
+
+    letter-spacing: -0.4px;
 }
 
+/* =====================================
+   기본 카드
+===================================== */
+
 .card {
-    background: #fcfdff;
-    border-radius: 20px;
+    background: #fff;
+
+    border: 1px solid var(--sp-line);
+
+    border-radius: 18px;
+
     padding: 22px;
-    margin-bottom: 22px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e7edf7;
+
+    margin-bottom: 16px;
+
+    box-shadow:
+        0 4px 18px
+        rgba(28, 43, 80, 0.04);
 }
+
+/* 로그인 카드 */
 
 .auth-card {
     max-width: 620px;
+
     margin: 0 auto 22px;
+}
+
+/* =====================================
+   학습 전광판
+===================================== */
+
+/* =====================================
+   ScorePath 21-129
+   홈 전광판 전용 화면
+===================================== */
+
+#cardExamMode #examRiskSummary {
+    background: #f8fbff;
+
+    border-color: #cddffa;
+
+    color: var(--sp-ink);
+
+    font-weight: 600;
+}
+
+/* =====================================
+   홈에서는 시험 관리 정보 숨기기
+===================================== */
+
+html[data-scorepath-main-tab="home"]
+#cardExamMode > .section-header {
+    display: none;
+}
+
+html[data-scorepath-main-tab="home"]
+#examListView {
+    display: none !important;
+}
+
+/* 기존 시험 분석 제목 중복 제거 */
+
+html[data-scorepath-main-tab="home"]
+#examRiskView > .section-label {
+    display: none;
+}
+
+/* 전광판 상단 여백 정리 */
+
+html[data-scorepath-main-tab="home"]
+#cardExamMode {
+    padding-top: 18px;
+}
+
+/* =====================================
+   하단 메뉴
+===================================== */
+
+/* =====================================
+   ScorePath 하단 내비게이션
+===================================== */
+
+/* =====================================
+   ScorePath 21-175
+   모바일 앱형 홈 화면
+===================================== */
+
+/* 홈 화면의 불필요한 바깥 카드 제거 */
+html[data-scorepath-main-tab="home"]
+#cardExamMode {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+/* 홈에서 중복 제목 숨기기 */
+html[data-scorepath-main-tab="home"]
+#cardExamMode > .section-header {
+    display: none;
+}
+
+/* =====================================
+   핵심 학습 추천 카드
+===================================== */
+
+#examRiskSummary
+[data-scorepath-board="main"] {
+    background: linear-gradient(
+        145deg,
+        #eff6ff,
+        #ffffff
+    );
+
+    border: 1px solid #bfdbfe;
+    border-radius: 24px;
+
+    padding: 24px;
+
+    box-shadow:
+        0 8px 26px rgba(37, 99, 235, 0.08);
+}
+
+/* 핵심 추천 제목 */
+[data-scorepath-board="main"]
+> .problem-item-title {
+    font-size: 21px;
+    font-weight: 800;
+
+    line-height: 1.45;
+
+    color: #1e3a8a;
+}
+
+/* 추천 설명 */
+[data-scorepath-board="main"]
+.check-text {
+    line-height: 1.7;
+}
+
+/* =====================================
+   공부 시작 버튼
+===================================== */
+
+#scorePathStartTopStudyV01 {
+    display: block;
+
+    width: 100%;
+
+    min-height: 52px;
+
+    padding: 15px 18px;
+
+    margin-top: 16px;
+
+    background: #2563eb;
+
+    color: #ffffff;
+
+    border: none;
+
+    border-radius: 14px;
+
+    font-size: 16px;
+
+    font-weight: 800;
+
+    cursor: pointer;
+}
+
+#scorePathStartTopStudyV01:hover {
+    background: #1d4ed8;
+}
+
+/* =====================================
+   상세 분석 접기
+===================================== */
+
+.scorepath-board-more {
+    margin-top: 18px;
+
+    padding: 14px;
+
+    background: #ffffff;
+
+    border: 1px solid #dbeafe;
+
+    border-radius: 12px;
+}
+
+.scorepath-board-more > summary {
+    cursor: pointer;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+    color: #475569;
+}
+
+/* =====================================
+   ScorePath 21-176
+   모바일 앱형 하단 메뉴
+===================================== */
+
+#scorePathMainNavigationV01 {
+    width: min(
+        480px,
+        calc(100% - 20px)
+    ) !important;
+
+    border-radius: 22px !important;
+
+    background:
+        rgba(255, 255, 255, 0.96) !important;
+
+    box-shadow:
+        0 8px 32px rgba(15, 23, 42, 0.14) !important;
+
+    backdrop-filter: blur(14px);
+
+    -webkit-backdrop-filter: blur(14px);
+}
+
+/* 메뉴 버튼 */
+#scorePathMainNavigationV01
+[data-main-tab] {
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 4px;
+
+    min-width: 0 !important;
+
+    padding: 9px 4px !important;
+
+    font-size: 12px !important;
+
+    line-height: 1.3;
+}
+
+/* 메뉴 아이콘 */
+.scorepath-nav-icon {
+    font-size: 21px;
+
+    line-height: 1.2;
+}
+
+/* =====================================
+   스마트폰 화면 최적화
+===================================== */
+
+@media (max-width: 600px) {
+
+    .wrap {
+        padding: 12px 12px 120px;
+    }
+
+    /* 추천 카드 */
+    #examRiskSummary
+    [data-scorepath-board="main"] {
+        padding: 18px;
+
+        border-radius: 18px;
+    }
+
+    /* 추천 제목 */
+    [data-scorepath-board="main"]
+    > .problem-item-title {
+        font-size: 19px;
+    }
+
+    /* 공부 시작 버튼 */
+    #scorePathStartTopStudyV01 {
+        font-size: 15px;
+
+        min-height: 50px;
+    }
+
+    /* 하단 메뉴 글씨 */
+    #scorePathMainNavigationV01
+    [data-main-tab] {
+        font-size: 11px !important;
+    }
+}
+
+/* =====================================
+   ScorePath 21-130
+   학습 화면 디자인
+===================================== */
+
+/* 문제 입력을 중심으로 표시 */
+
+html[data-scorepath-main-tab="study"]
+#cardInput {
+    border: 2px solid #bfdbfe;
+
+    box-shadow:
+        0 6px 24px
+        rgba(37, 99, 235, 0.07);
+}
+
+/* 문제 입력 제목 */
+
+html[data-scorepath-main-tab="study"]
+#cardInput > h2 {
+    color: #1d4ed8;
+
+    margin-bottom: 20px;
+}
+
+/* 시험 연결 영역 구분 */
+
+html[data-scorepath-main-tab="study"]
+#scorePathContextBox {
+    background: #f8fbff;
+
+    border: 1px solid #dbeafe;
+
+    border-radius: 14px;
+
+    padding: 14px;
+
+    margin: 16px 0;
+}
+
+/* =====================================
+   ScorePath 21-179
+   학습 화면 모바일 디자인
+===================================== */
+
+/* 학습 시작 안내 */
+#scorePathStudyIntroV01 {
+    margin: 0 0 18px;
+
+    font-size: 14px;
+
+    line-height: 1.6;
+
+    color: #64748b;
+}
+
+/* =====================================
+   과목 설정 접기
+===================================== */
+
+.scorepath-subject-settings {
+    margin: 6px 0 16px;
+
+    padding: 10px 12px;
+
+    border: 1px solid #e3eaf5;
+
+    border-radius: 12px;
+
+    background: #f8fafc;
+}
+
+/* 과목 설정 제목 */
+.scorepath-subject-settings > summary {
+    cursor: pointer;
+
+    color: #475569;
+
+    font-size: 14px;
+
+    font-weight: 700;
+}
+
+/* 펼쳤을 때 */
+.scorepath-subject-settings[open] > summary {
+    margin-bottom: 12px;
+}
+
+/* =====================================
+   과목 관리 버튼 배치
+===================================== */
+
+.scorepath-subject-settings
+.subject-manage-row {
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1fr) auto auto;
+
+    gap: 8px;
+
+    align-items: start;
+}
+
+.scorepath-subject-settings
+.subject-manage-row input {
+    min-width: 0;
+
+    margin-bottom: 0;
+}
+
+/* =====================================
+   스마트폰 최적화
+===================================== */
+
+@media (max-width: 768px) {
+
+    .scorepath-subject-settings
+    .subject-manage-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =====================================
+   기존 AI 분석 디자인 유지
+===================================== */
+
+html[data-scorepath-main-tab="study"]
+#cardAnalysis {
+    border-left: 4px solid #7c3aed;
+}
+
+/* 부가 학습 카드 */
+
+html[data-scorepath-main-tab="study"]
+#cardSimilar,
+
+html[data-scorepath-main-tab="study"]
+#cardAdvanced {
+    box-shadow: none;
+}
+
+/* 작은 화면에서 입력 영역 정리 */
+
+@media (max-width: 768px) {
+
+    html[data-scorepath-main-tab="study"]
+    #cardInput {
+        padding: 16px;
+    }
+
+    html[data-scorepath-main-tab="study"]
+    #scorePathContextBox {
+        padding: 12px;
+    }
+
+    html[data-scorepath-main-tab="study"]
+    #cardInput > h2 {
+        font-size: 20px;
+    }
 }
 
 .auth-tabs {
@@ -112,6 +647,97 @@ select:focus {
     gap: 10px;
     flex-wrap: wrap;
     align-items: center;
+}
+
+/* =====================================
+   ScorePath 21-182
+   학습 → 정답 확인 → 공부 완료
+===================================== */
+
+/* 학습 화면 세로 정렬 */
+
+html[data-scorepath-main-tab="study"]
+#cardInput {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 정답 확인 영역 */
+
+.scorepath-answer-action {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+/* 정답 확인 버튼 */
+
+.scorepath-answer-action #checkBtn {
+    width: 100%;
+    min-height: 52px;
+    font-size: 16px;
+}
+
+/* 채점 안내 */
+
+.scorepath-study-caption {
+    margin: 0;
+    font-size: 12px;
+    color: #64748b;
+}
+
+/* 다음 행동 안내 */
+
+.scorepath-study-next-hint {
+    margin: 10px 0 14px;
+    padding: 12px;
+
+    border-radius: 12px;
+
+    background: #eef6ff;
+    color: #1e40af;
+
+    font-size: 14px;
+}
+
+/* AI 추가 도구 */
+
+.scorepath-study-tools {
+    padding: 12px;
+
+    border: 1px solid #e3eaf5;
+    border-radius: 12px;
+
+    background: #f8fafc;
+}
+
+.scorepath-study-tools > summary {
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.scorepath-study-tools[open] > summary {
+    margin-bottom: 12px;
+}
+
+/* =====================================
+   공부 완료 버튼
+   학습 카드의 가장 아래로 배치
+===================================== */
+
+html[data-scorepath-main-tab="study"]
+#scorePathStudyCompleteV01 {
+    order: 100;
+
+    width: 100%;
+    min-height: 52px;
+
+    margin: 18px 0 0 !important;
+
+    background: #0f766e;
+
+    font-size: 16px;
 }
 
 button {
@@ -194,6 +820,34 @@ button:disabled {
     white-space: pre-wrap;
 }
 
+/* =====================================
+   ScorePath 시험 등록 화면 간격 최적화
+===================================== */
+
+/* HTML 줄바꿈으로 생기는 불필요한 공백 제거 */
+#examListView > .result-box {
+    white-space: normal;
+}
+
+/* 항목 이름 간격 축소 */
+#examListView > .result-box label {
+    margin-top: 10px;
+    margin-bottom: 4px;
+}
+
+/* 입력창 간격과 높이 조절 */
+#examListView > .result-box input,
+#examListView > .result-box select,
+#examListView > .result-box textarea {
+    margin-bottom: 5px;
+    padding: 9px 11px;
+}
+
+/* 시험범위 입력창 높이 조절 */
+#examListView > .result-box textarea {
+    min-height: 96px;
+}
+
 .problem-list-box {
     display: grid;
     grid-template-columns: 1fr;
@@ -267,6 +921,318 @@ button:disabled {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 12px;
+}
+
+/* =====================================
+   ScorePath 21-191
+   성장 화면 학습 성과 디자인
+===================================== */
+
+.scorepath-growth-progress {
+    margin: 14px 0 20px;
+
+    padding: 18px;
+
+    border: 1px solid #bfdbfe;
+
+    border-radius: 18px;
+
+    background: linear-gradient(
+        145deg,
+        #eff6ff,
+        #ffffff
+    );
+
+    color: #17233a;
+}
+
+/* 제목 */
+
+.scorepath-growth-progress h3 {
+    margin: 0 0 12px;
+
+    font-size: 18px;
+
+    font-weight: 800;
+
+    color: #1e40af;
+}
+
+/* 학습 현황 */
+
+.scorepath-growth-progress p {
+    margin: 8px 0;
+
+    font-size: 14px;
+
+    line-height: 1.7;
+}
+
+/* 단원별 변화 */
+
+.scorepath-growth-comparisons {
+    display: grid;
+
+    gap: 10px;
+
+    margin-top: 14px;
+}
+
+.scorepath-growth-comparisons > div {
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 14px;
+
+    border: 1px solid #dbeafe;
+
+    border-radius: 12px;
+
+    background: #ffffff;
+}
+
+.scorepath-growth-comparisons strong {
+    font-size: 14px;
+
+    overflow-wrap: anywhere;
+}
+
+.scorepath-growth-comparisons span {
+    color: #2563eb;
+
+    font-size: 14px;
+
+    font-weight: 800;
+}
+
+/* 측정 한계 */
+
+.scorepath-growth-progress small {
+    display: block;
+
+    margin-top: 14px;
+
+    color: #64748b;
+
+    font-size: 12px;
+
+    line-height: 1.6;
+}
+
+/* =====================================
+   ScorePath 21-197
+   학습 후 추천 변화 카드
+===================================== */
+
+.scorepath-study-change {
+    margin-top: 20px;
+
+    padding: 18px;
+
+    background: #f8fafc;
+
+    border: 1px solid #dbeafe;
+
+    border-radius: 16px;
+}
+
+/* 카드 제목 */
+
+.scorepath-study-change h4 {
+    margin: 0 0 14px;
+
+    font-size: 17px;
+
+    font-weight: 800;
+
+    color: #1e40af;
+}
+
+/* 공부 기록 */
+
+.scorepath-study-change p {
+    margin: 8px 0;
+
+    font-size: 14px;
+
+    line-height: 1.7;
+
+    overflow-wrap: anywhere;
+}
+
+/* 항목 제목 */
+
+.scorepath-study-change p strong {
+    margin-right: 6px;
+}
+
+/* =====================================
+   추천 변화 강조
+===================================== */
+
+.scorepath-study-change-result {
+    margin: 16px 0;
+
+    padding: 16px;
+
+    background: #eff6ff;
+
+    border: 1px solid #bfdbfe;
+
+    border-radius: 12px;
+}
+
+.scorepath-study-change-result > strong {
+    display: block;
+
+    margin-bottom: 10px;
+
+    color: #1e40af;
+
+    font-size: 15px;
+}
+
+.scorepath-study-change-result p {
+    margin: 6px 0;
+}
+
+/* 변경 여부 */
+
+.scorepath-study-change-result b {
+    display: inline-block;
+
+    margin-top: 10px;
+
+    padding: 7px 12px;
+
+    background: #dbeafe;
+
+    color: #1e40af;
+
+    border-radius: 8px;
+
+    font-size: 13px;
+}
+
+/* 스마트폰 최적화 */
+
+@media (max-width: 600px) {
+
+    .scorepath-study-change {
+        padding: 14px;
+    }
+
+    .scorepath-study-change-result {
+        padding: 12px;
+    }
+}
+
+/* 스마트폰 최적화 */
+
+@media (max-width: 600px) {
+
+    .scorepath-growth-progress {
+        padding: 14px;
+    }
+
+    .scorepath-growth-comparisons > div {
+        flex-direction: column;
+
+        align-items: flex-start;
+
+        gap: 6px;
+    }
+}
+
+/* =====================================
+   ScorePath 21-188
+   성장 기록 요약 카드
+===================================== */
+
+.scorepath-growth-snapshot {
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 10px;
+
+    margin: 12px 0 18px;
+}
+
+/* =====================================
+   공통 카드
+===================================== */
+
+.scorepath-growth-metric,
+.scorepath-growth-focus {
+    min-width: 0;
+
+    padding: 14px;
+
+    border: 1px solid #dbeafe;
+
+    border-radius: 14px;
+
+    background: #f8fbff;
+}
+
+/* =====================================
+   카드 제목
+===================================== */
+
+.scorepath-growth-metric span,
+.scorepath-growth-focus span {
+    display: block;
+
+    color: #475569;
+
+    font-size: 13px;
+}
+
+/* =====================================
+   기록 숫자
+===================================== */
+
+.scorepath-growth-metric strong {
+    display: block;
+
+    margin-top: 7px;
+
+    color: #1d4ed8;
+
+    font-size: 24px;
+}
+
+/* =====================================
+   주요 약점 카드
+===================================== */
+
+.scorepath-growth-focus {
+    grid-column: 1 / -1;
+
+    background: #eff6ff;
+}
+
+.scorepath-growth-focus strong {
+    display: block;
+
+    margin: 7px 0;
+
+    overflow-wrap: anywhere;
+}
+
+.scorepath-growth-focus small {
+    display: block;
+
+    color: #64748b;
+
+    line-height: 1.5;
 }
 
 .summary-stat-card {
@@ -393,15 +1359,91 @@ button:disabled {
     }
 }
 
+/* =====================================
+   ScorePath 21-128
+   모바일 화면 최적화
+===================================== */
+
 @media (max-width: 768px) {
+
+    /* =====================================
+       전체 화면
+    ===================================== */
+
+    .wrap {
+        padding: 16px 12px 120px;
+    }
+
+    /* =====================================
+       브랜드
+    ===================================== */
+
+    .scorepath-brand {
+        gap: 10px;
+
+        padding-bottom: 18px;
+    }
+
+    .scorepath-brand-icon {
+        width: 42px;
+        height: 42px;
+
+        flex-basis: 42px;
+
+        font-size: 24px;
+    }
+
+    .scorepath-brand-copy h1 {
+        font-size: 24px;
+    }
+
+    .scorepath-brand-copy p {
+        font-size: 12px;
+    }
+
+    /* =====================================
+       카드
+    ===================================== */
+
+    .card {
+        padding: 16px;
+
+        border-radius: 16px;
+
+        margin-bottom: 12px;
+    }
+
+    /* =====================================
+       통계 및 입력 정보
+    ===================================== */
+
     .toolbar,
     .count-box,
     .stats-grid,
-    .summary-stats-grid,
-    .pricing-grid,
-    .auth-tabs {
+    .pricing-grid {
         grid-template-columns: 1fr;
     }
+
+    /* 주요 통계는 2열 */
+
+    .summary-stats-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+        gap: 8px;
+    }
+
+    .summary-stat-card {
+        padding: 12px 7px;
+    }
+
+    .summary-stat-value {
+        font-size: 21px;
+    }
+
+    /* =====================================
+       기존 버튼 정렬
+    ===================================== */
 
     .button-row,
     .item-buttons,
@@ -409,11 +1451,48 @@ button:disabled {
     .top-bar,
     .auth-tabs {
         flex-direction: column;
+
         align-items: stretch;
     }
 
     button {
         width: 100%;
+    }
+
+    /* =====================================
+       하단 4개 메뉴
+    ===================================== */
+
+    #scorePathMainNavigationV01 {
+        width: calc(100% - 20px) !important;
+
+        gap: 4px !important;
+
+        padding: 6px !important;
+    }
+
+    /* =====================================
+       하단 메뉴 버튼
+    ===================================== */
+
+    #scorePathMainNavigationV01
+    [data-main-tab] {
+
+        flex: 1 1 0 !important;
+
+        min-width: 0 !important;
+
+        width: auto !important;
+
+        padding: 9px 3px !important;
+
+        font-size: 11px !important;
+
+        line-height: 1.3;
+
+        white-space: normal !important;
+
+        min-height: 46px;
     }
 }
 
@@ -484,6 +1563,141 @@ display:none !important;
     margin-bottom: 0;
 }
 
-#wrongList li .item-buttons button {
+#wrongList li .item-buttons button { 
+    width: auto; 
+}
+
+/* 오늘 복습 추천 - 복습하기 버튼 */
+.small-btn {
     width: auto;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.small-btn:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.small-btn:active {
+    background: #1e40af;
+    transform: translateY(0);
+}
+
+.small-btn:disabled {
+    background: #94a3b8;
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+/* =====================================
+   문제 사진 입력 / Crop
+===================================== */
+
+.problem-image-preview-box {
+    margin-top: 14px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    background: #fafafa;
+}
+
+.problem-image-preview {
+    display: block;
+    width: 100%;
+    max-height: 420px;
+    object-fit: contain;
+    border-radius: 10px;
+    background: #f0f0f0;
+}
+
+.image-crop-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+
+    background: rgba(0, 0, 0, 0.82);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 16px;
+}
+
+.image-crop-modal[hidden] {
+    display: none;
+}
+
+.image-crop-panel {
+    width: min(900px, 100%);
+    max-height: 95vh;
+    overflow: auto;
+
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.image-crop-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    margin-bottom: 8px;
+}
+
+.image-crop-stage {
+    position: relative;
+
+    width: 100%;
+    max-height: 70vh;
+
+    overflow: hidden;
+
+    background: #111;
+
+    border-radius: 12px;
+
+    user-select: none;
+    touch-action: none;
+
+    cursor: crosshair;
+}
+
+.image-crop-stage img {
+    display: block;
+
+    width: 100%;
+    height: auto;
+
+    max-height: 70vh;
+
+    object-fit: contain;
+
+    pointer-events: none;
+    user-select: none;
+}
+
+.image-crop-selection {
+    position: absolute;
+
+    border: 3px solid white;
+
+    background: rgba(255, 255, 255, 0.12);
+
+    box-shadow:
+        0 0 0 9999px rgba(0, 0, 0, 0.55);
+
+    border-radius: 6px;
+
+    pointer-events: none;
+
+    display: none;
 }

@@ -3,12 +3,37 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>오답노트 AI 웹앱</title>
+    <title>ScorePath | 나에게 맞는 다음 공부</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div class="wrap">
-        <h1>오답노트 AI 웹앱</h1>
+
+        <!-- =====================================
+             ScorePath 21-126
+             앱 브랜드 영역
+             ===================================== -->
+
+        <header class="scorepath-brand">
+
+            <span
+                class="scorepath-brand-icon"
+                aria-hidden="true"
+            >
+                S
+            </span>
+
+            <div class="scorepath-brand-copy">
+
+                <h1>ScorePath</h1>
+
+                <p>
+                    지금 무엇을 공부할지, 한눈에.
+                </p>
+
+            </div>
+
+        </header>
 
         <div id="authCard" class="card auth-card">
             <div class="auth-tabs">
@@ -19,7 +44,7 @@
             <div id="loginBox">
                 <h2>로그인</h2>
                 <input id="loginEmail" type="email" placeholder="이메일" />
-                <input id="loginPassword" type="password" placeholder="비밀번호" />
+                <input id="loginPassword" type="password" autocomplete="current-password" placeholder="비밀번호" />
                 <button id="loginBtn" class="primary-btn" type="button">로그인</button>
             </div>
 
@@ -27,7 +52,8 @@
                 <h2>회원가입</h2>
                 <input id="registerName" type="text" placeholder="이름" />
                 <input id="registerEmail" type="email" placeholder="이메일" />
-                <input id="registerPassword" type="password" placeholder="비밀번호 (4자 이상)" />
+                <input id="registerPassword" type="password" minlength="8" autocomplete="new-password" placeholder="비밀번호 (8자 이상)" />
+                <label class="sp-join-age"><input id="registerAge14Confirmed" type="checkbox" style="width:auto;margin-right:7px;">만 14세 이상이며, <a href="/legal/privacy.html" target="_blank" rel="noopener">개인정보 안내</a>를 확인했습니다.</label>
                 <button id="registerBtn" class="primary-btn" type="button">회원가입</button>
             </div>
 
@@ -35,89 +61,756 @@
         </div>
 
         <div id="appShell" hidden>
-            <div class="card" id="cardPricing">
-                <div class="top-bar">
-                    <div>
-                        <h2 id="welcomeText">환영합니다</h2>
-                        <p id="usageText" class="usage-text"></p>
-                        <p id="advancedUsageText" class="usage-text"></p>
-                        <p id="slotText" class="check-text"></p>
+
+    <!-- ========================= -->
+    <!-- 오늘의 학습 -->
+    <!-- ========================= -->
+
+    <div class="card" id="cardTodayLearning">
+        <!-- ScorePath 21-183: 성장 화면 -->
+
+        <div class="section-header">
+            <div>
+                <h2>📈 성장과 복습</h2>
+
+                <p class="check-text">
+                    지금까지의 학습 기록을 확인하고,
+                    부족한 개념을 복습하세요.
+                </p>
+            </div>
+        </div>
+
+
+        <!-- =====================================
+             ScorePath 21-186
+             성장 화면 학습 기록 요약
+        ===================================== -->
+
+        <div
+            id="scorePathGrowthSnapshotV01"
+            class="scorepath-growth-snapshot"
+            aria-live="polite"
+        ></div>
+
+        <!-- =====================================
+             ScorePath 21-189
+             학습 성과 및 변화
+        ===================================== -->
+
+        <div
+            id="scorePathGrowthProgressV01"
+            class="scorepath-growth-progress"
+            aria-live="polite"
+        >
+            학습 기록을 불러오는 중...
+        </div>
+
+        <div class="summary-stats-grid">
+
+            <div class="summary-stat-card">
+                <div class="summary-stat-title">
+                    🔴 다시 풀어볼 문제
+                </div>
+                <div
+                    id="todayRetryCount"
+                    class="summary-stat-value"
+                >
+                    0
+                </div>
+            </div>
+
+            <div class="summary-stat-card">
+                <div class="summary-stat-title">
+                    🟡 복습할 개념
+                </div>
+                <div
+                    id="todayReviewCount"
+                    class="summary-stat-value"
+                >
+                    0
+                </div>
+            </div>
+
+            <div class="summary-stat-card">
+                <div class="summary-stat-title">
+                    🔵 약점 훈련
+                </div>
+                <div
+                    id="todayTrainingCount"
+                    class="summary-stat-value"
+                >
+                    0
+                </div>
+            </div>
+
+        </div>
+
+        <div class="section-label">
+            🔴 다시 풀어볼 문제
+        </div>
+
+        <div
+            id="todayRetryProblems"
+            class="problem-list-box"
+        >
+            <div class="problem-item">
+                <div class="problem-item-text">
+                    불러오는 중...
+                </div>
+            </div>
+        </div>
+
+
+        <div class="section-label">
+            🟡 복습할 개념
+        </div>
+
+        <div
+            id="todayReviewConcepts"
+            class="problem-list-box"
+        >
+            <div class="problem-item">
+                <div class="problem-item-text">
+                    불러오는 중...
+                </div>
+            </div>
+        </div>
+
+
+        <div class="section-label">
+            🔵 약점 훈련
+        </div>
+
+        <div
+            id="todayWeaknessTraining"
+            class="problem-list-box"
+        >
+            <div class="problem-item">
+                <div class="problem-item-text">
+                    불러오는 중...
+                </div>
+            </div>
+        </div>
+
+
+        <div class="section-label">
+            최근 가장 많이 틀린 약점
+        </div>
+
+        <div
+            id="todayTopWeakness"
+            class="weakness-box"
+        >
+            아직 약점 데이터가 없습니다.
+        </div>
+    </div>
+
+
+    <!-- ========================= -->
+    <!-- 시험 모드 -->
+    <!-- ========================= -->
+    <div class="card" id="cardExamMode">
+
+        <div class="section-header">
+            <div>
+                <h2>시험 모드</h2>
+
+                <p class="check-text">
+                    시험일까지 남은 기간과 내 약점을 분석해서
+                    시험 대비 문제를 준비합니다.
+                </p>
+            </div>
+        </div>
+
+
+        <!-- ===================================== -->
+<!-- ScorePath 시험 등록 + 시험 목록 -->
+<!-- ===================================== -->
+
+<div id="examListView">
+
+    <!-- 시험 등록 -->
+    <div class="section-label">
+        새 시험 등록
+    </div>
+
+    <div class="result-box">
+
+        <label for="examName">
+            시험 이름
+        </label>
+
+        <input
+            id="examName"
+            type="text"
+            maxlength="50"
+            placeholder="예: 2학기 기말고사"
+        />
+
+
+        <label for="examSubject">
+            과목
+        </label>
+
+        <select id="examSubject">
+            <option value="">
+                과목 선택
+            </option>
+        </select>
+
+
+        <label for="examDate">
+            시험 날짜
+        </label>
+
+        <input
+            id="examDate"
+            type="date"
+        />
+
+
+         <!-- =====================================
+             ScorePath V1
+             현재 성적 입력
+        ===================================== -->
+
+        <label for="examCurrentScore">
+            현재 성적 (모르면 비워두기)
+        </label>
+
+        <input
+            id="examCurrentScore"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            placeholder="최근 시험 점수 · 예: 55"
+        />
+
+        <label for="examTargetScore">
+            목표 점수
+        </label>
+
+        <input
+            id="examTargetScore"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            placeholder="예: 70"
+        />
+
+
+        <label for="examDailyStudyMinutes">
+            하루 공부 가능 시간 (분)
+        </label>
+
+        <input
+            id="examDailyStudyMinutes"
+            type="number"
+            min="1"
+            max="1440"
+            step="1"
+            placeholder="예: 60"
+        />
+
+
+        <label for="examRange">
+            시험 범위
+        </label>
+
+        <textarea
+            id="examRange"
+            placeholder="단원 이름을 한 줄씩 입력하세요.&#10;예:&#10;함수의 극한&#10;미분계수&#10;도함수"
+        ></textarea>
+
+        <p class="check-text" style="font-weight:400; color:#64748b;">
+            단원 이름만 입력해도 됩니다. 중요도는 기본 3/5로 설정됩니다.
+        </p>
+
+        <details style="margin:10px 0 16px;">
+            <summary style="cursor:pointer; font-weight:700;">
+                ⚙️ 중요도·선행 개념 설정 (선택)
+            </summary>
+
+            <p class="check-text" style="font-weight:400;">
+                필요한 줄에만
+                <strong>단원 | 중요도 | 선행 단원</strong>
+                형식으로 입력하세요.<br>
+
+                예: 미분계수 | 5<br>
+                예: 도함수 | 4 | 미분계수<br>
+
+                선행 단원은 시험범위에도 별도 줄로 적어야 합니다.<br>
+
+                여러 개면 쉼표로 구분하세요.<br>
+                예: 접선 | 5 | 미분계수, 도함수
+            </p>
+        </details>
+
+
+        <div class="button-row">
+
+            <button
+                id="createExamBtn"
+                type="button"
+                class="primary-btn"
+            >
+                시험 등록
+            </button>
+
+        </div>
+
+
+        <p
+            id="createExamMessage"
+            class="check-text"
+        ></p>
+
+    </div>
+
+
+    <!-- 등록된 시험 -->
+    <div class="section-label">
+        내 시험
+    </div>
+
+    <div
+        id="examList"
+        class="problem-list-box"
+    >
+        <div class="problem-item">
+            <div class="problem-item-text">
+                시험 정보를 불러오는 중...
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+        <!-- 시험 위험도 -->
+        <div
+            id="examRiskView"
+            hidden
+        >
+            <div class="section-label">
+                시험 대비 분석
+            </div>
+
+            <div
+                id="examRiskSummary"
+                class="weakness-box"
+            >
+                아직 시험을 선택하지 않았습니다.
+            </div>
+
+            <div
+                id="examRiskWeaknesses"
+                class="problem-list-box"
+            ></div>
+
+            <div class="button-row">
+
+                <button
+                    id="startExamStudyBtn"
+                    type="button"
+                    class="primary-btn"
+                >
+                    시험 대비 시작
+                </button>
+
+                <button
+                    id="backToExamListBtn"
+                    type="button"
+                    class="secondary-btn"
+                >
+                    시험 목록으로
+                </button>
+
+            </div>
+        </div>
+
+
+        <!-- 시험 문제 풀이 -->
+        <div
+            id="examStudyView"
+            hidden
+        >
+            <div class="section-label">
+                시험 대비 문제
+            </div>
+
+            <p
+                id="examStudyProgress"
+                class="check-text"
+            >
+                0 / 0
+            </p>
+
+            <div
+                id="examStudyProblem"
+                class="result-box"
+            >
+                문제를 불러오는 중...
+            </div>
+
+            <label for="examStudyAnswer">
+                내 답
+            </label>
+
+            <input
+                id="examStudyAnswer"
+                type="text"
+                placeholder="답을 입력하세요"
+            />
+
+            <div class="button-row">
+
+                <button
+                    id="submitExamStudyAnswerBtn"
+                    type="button"
+                    class="primary-btn"
+                >
+                    제출
+                </button>
+
+            </div>
+
+            <div
+                id="examStudyFeedback"
+                class="check-text"
+            ></div>
+
+        </div>
+
+
+        <!-- 시험 결과 -->
+        <div
+            id="examResultView"
+            hidden
+        >
+            <div class="section-label">
+                시험 대비 완료
+            </div>
+
+            <div class="summary-stats-grid">
+
+                <div class="summary-stat-card">
+                    <div class="summary-stat-title">
+                        총 문제
                     </div>
-                    <div class="button-row">
-                        <button id="logoutBtn" class="secondary-btn" type="button">로그아웃</button>
+
+                    <div
+                        id="examResultTotal"
+                        class="summary-stat-value"
+                    >
+                        0
                     </div>
                 </div>
 
-                <h2>요금제 안내</h2>
+
+                <div class="summary-stat-card">
+                    <div class="summary-stat-title">
+                        정답
+                    </div>
+
+                    <div
+                        id="examResultCorrect"
+                        class="summary-stat-value"
+                    >
+                        0
+                    </div>
+                </div>
+
+
+                <div class="summary-stat-card">
+                    <div class="summary-stat-title">
+                        오답
+                    </div>
+
+                    <div
+                        id="examResultWrong"
+                        class="summary-stat-value"
+                    >
+                        0
+                    </div>
+                </div>
+
+
+                <div class="summary-stat-card">
+                    <div class="summary-stat-title">
+                        정답률
+                    </div>
+
+                    <div
+                        id="examResultAccuracy"
+                        class="summary-stat-value"
+                    >
+                        0%
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="button-row">
+
+                <button
+                    id="finishExamStudyBtn"
+                    type="button"
+                    class="secondary-btn"
+                >
+                    시험 목록으로
+                </button>
+
+            </div>
+
+        </div>
+
+        <p
+            id="examModeMessage"
+            class="check-text"
+        ></p>
+
+    </div>
+
+
+    <div class="card" id="cardPricing">
+    
+        <div class="top-bar">
+            <div>
+                <h2 id="welcomeText">환영합니다</h2>
+                <p id="usageText" class="usage-text"></p>
+                <p id="advancedUsageText" class="usage-text"></p>
+                <p id="slotText" class="check-text"></p>
+            </div>
+
+            <div class="button-row">
+                <button
+                    id="logoutBtn"
+                    class="secondary-btn"
+                    type="button"
+                >
+                    로그아웃
+                </button>
+            </div>
+        </div>
+
+        <h2>요금제 안내</h2>
                 <div class="pricing-grid">
                     <div class="pricing-card">
                         <div class="pricing-title">무료</div>
-                        <div class="pricing-line">AI 하루 2회</div>
-                        <div class="pricing-line">저장 50개</div>
+                        <div class="pricing-line">AI 기본 분석 하루 2회</div>
+                        <div class="pricing-line">응용문제 생성 불가</div>
+                        <div class="pricing-line">문제 저장 50개 (정답 + 오답)</div>
                         <div class="pricing-line">유사문제 1개</div>
                     </div>
                     <div class="pricing-card">
-                        <div class="pricing-title">5900원</div>
-                        <div class="pricing-line">AI 하루 20회</div>
-                        <div class="pricing-line">저장 300개</div>
+                        <div class="pricing-title">유료 · 월 9,900원</div>
+                        <div class="pricing-line">AI 기본 분석 하루 15회</div>
+                        <div class="pricing-line">응용문제 생성 하루 2회</div>
+                        <div class="pricing-line">문제 저장 무제한 (정답 + 오답)</div>
                         <div class="pricing-line">유사문제 2개</div>
-                        <div class="pricing-line">복습 추천/통계</div>
-                    </div>
-                    <div class="pricing-card">
-                        <div class="pricing-title">8900원</div>
-                        <div class="pricing-line">AI 하루 40회</div>
-                        <div class="pricing-line">저장 무제한</div>
-                        <div class="pricing-line">유사문제 3개</div>
-                        <div class="pricing-line">응용문제</div>
-                        <div class="pricing-line">약한 과목 분석</div>
+                        <div class="pricing-line">복습 추천·학습 통계</div>
                     </div>
                 </div>
 
                 <div class="button-row">
-                    <button id="planFree" class="free-btn" type="button">무료</button>
-                    <button id="plan5900" class="pro-btn" type="button">5900원</button>
-                    <button id="plan8900" class="max-btn" type="button">8900원</button>
+                    <button id="planFree" class="free-btn" type="button">무료 (개발 테스트)</button>
+                    <!-- 기존 JS의 ID를 유지하여 개발 환경에서 테스트. 실제 결제/구독 연동 전에는 유료 판매 불가 -->
+                    <button id="plan8900" class="max-btn" type="button">유료 월 9,900원 (개발 테스트)</button>
                     <button id="resetUsageBtn" class="secondary-btn" type="button">테스트 리셋</button>
                 </div>
             </div>
 
             <div class="card" id="cardInput">
-                <h2>문제 입력</h2>
+                <!-- =====================================
+                     ScorePath 21-178
+                     새로운 학습 화면
+                ===================================== -->
 
-                <p id="similarModeText" class="usage-text" hidden>유사문제 풀이 모드입니다.</p>
-                <p id="advancedModeText" class="usage-text advanced-mode" hidden>응용문제 풀이 모드입니다.</p>
+                <h2>✏️ 문제 풀기</h2>
 
-            <label for="subject">과목</label>
+                <p id="similarModeText"
+                   class="usage-text"
+                   hidden>
+                    유사문제 풀이 모드입니다.
+                </p>
 
-<select id="subject"></select>
+                <p id="advancedModeText"
+                   class="usage-text advanced-mode"
+                   hidden>
+                    응용문제 풀이 모드입니다.
+                </p>
 
-<div class="subject-manage-row">
+                <label for="subject">
+                    과목
+                </label>
+
+                <select id="subject"></select>
+
+                <!-- 과목 설정 접기 -->
+                <details class="scorepath-subject-settings">
+
+                    <summary>
+                        ⚙️ 과목 추가·삭제
+                    </summary>
+
+                    <div class="subject-manage-row">
+
+                        <input
+                            id="newSubjectInput"
+                            type="text"
+                            maxlength="20"
+                            placeholder="추가할 과목"
+                        />
+
+                        <button
+                            id="addSubjectBtn"
+                            type="button"
+                            class="secondary-btn"
+                        >
+                            과목 추가
+                        </button>
+
+                        <button
+                            id="deleteSubjectBtn"
+                            type="button"
+                            class="danger-btn"
+                        >
+                            선택 과목 삭제
+                        </button>
+
+                    </div>
+
+                    <p
+                        id="subjectMessage"
+                        class="check-text"
+                    ></p>
+
+                </details>
+
+
+<!-- ===================================== -->
+<!-- ScorePath - 현재 학습 범위 -->
+<!-- ===================================== -->
+
+<!-- =====================================
+     ScorePath UI 간소화
+     시험·단원 설정 접기
+===================================== -->
+
+<details
+    id="scorePathContextBox"
+    class="scorepath-subject-settings"
+>
+
+    <summary>
+        ⚙️ 시험·단원 변경
+    </summary>
+
+    <label for="scorePathExam">
+        시험
+    </label>
+
+    <select id="scorePathExam">
+        <option value="">
+            시험 연결 안 함
+        </option>
+    </select>
+
+    <label for="scorePathUnit">
+        단원
+    </label>
+
+    <select id="scorePathUnit" disabled>
+        <option value="">
+            시험을 먼저 선택하세요
+        </option>
+    </select>
+
+    <p
+        id="scorePathContextMessage"
+        class="check-text"
+    ></p>
+
+</details>
+
+
+<!-- =====================================
+     ScorePath 21-260
+     일반 모드 학습 단원 입력
+===================================== -->
+
+<div
+    id="scorePathGeneralUnitWrap"
+    style="
+        margin:12px 0;
+        padding:12px;
+        border:1px solid #dbeafe;
+        border-radius:12px;
+        background:#f8fafc;
+    "
+>
+
+    <label
+        for="scorePathGeneralUnit"
+        style="
+            display:block;
+            margin-bottom:8px;
+            font-weight:600;
+        "
+    >
+        📘 현재 공부하는 단원
+    </label>
+
     <input
-        id="newSubjectInput"
+        id="scorePathGeneralUnit"
         type="text"
-        maxlength="20"
-        placeholder="추가할 과목"
-    />
+        maxlength="80"
+        autocomplete="off"
+        placeholder="예: 미분계수, 도함수, 산화와 환원"
+        style="
+            width:100%;
+            box-sizing:border-box;
+        "
+    >
 
-    <button id="addSubjectBtn" type="button" class="secondary-btn">
-        과목 추가
-    </button>
+    <small
+        style="
+            display:block;
+            margin-top:8px;
+            color:#64748b;
+        "
+    >
+        일반 모드에서 공부하는 단원을 입력하세요.
+        입력한 단원은 학습 기록과 전광판 분석에 활용됩니다.
+    </small>
 
-    <button id="deleteSubjectBtn" type="button" class="danger-btn">
-        선택 과목 삭제
-    </button>
 </div>
 
-<p id="subjectMessage" class="check-text"></p>
 
-                <label for="problem">문제</label>
-<textarea id="problem" placeholder="문제를 입력하세요"></textarea>
+<!-- =====================================
+     ScorePath UI 간소화
+     문제 입력
+===================================== -->
+
+<label for="problem">
+    문제 입력
+</label>
+
+<textarea
+    id="problem"
+    placeholder="문제를 입력하세요"
+></textarea>
 
 <div class="button-row">
+
     <input
         id="problemImageInput"
         type="file"
         accept="image/*"
+        capture="environment"
         hidden
     />
 
@@ -126,10 +819,98 @@
         class="secondary-btn"
         type="button"
     >
-        사진에서 문제 가져오기
+        📷 사진 추가
     </button>
 
-    <span id="imageLoadingText" class="check-text"></span>
+    <span
+        id="imageLoadingText"
+        class="check-text"
+    ></span>
+
+</div>
+
+<!-- 선택 완료된 문제 사진 -->
+<div
+    id="problemImagePreviewBox"
+    class="problem-image-preview-box"
+    hidden
+>
+    <img
+        id="problemImagePreview"
+        class="problem-image-preview"
+        alt="선택한 문제 사진"
+    />
+
+    <div class="button-row">
+        <button
+            id="changeProblemImageBtn"
+            class="secondary-btn"
+            type="button"
+        >
+            사진 다시 선택
+        </button>
+
+        <button
+            id="removeProblemImageBtn"
+            class="danger-btn"
+            type="button"
+        >
+            사진 삭제
+        </button>
+    </div>
+</div>
+
+<!-- 사진 범위 선택 모달 -->
+<div
+    id="imageCropModal"
+    class="image-crop-modal"
+    hidden
+>
+    <div class="image-crop-panel">
+
+        <div class="image-crop-header">
+            <strong>문제 범위 선택</strong>
+
+            <button
+                id="cancelImageCropBtn"
+                class="secondary-btn"
+                type="button"
+            >
+                취소
+            </button>
+        </div>
+
+        <p class="check-text">
+            문제에 필요한 부분만 사각형으로 선택하세요.
+        </p>
+
+        <div
+            id="imageCropStage"
+            class="image-crop-stage"
+        >
+            <img
+                id="imageCropSource"
+                alt="자를 문제 사진"
+                draggable="false"
+            />
+
+            <div
+                id="imageCropSelection"
+                class="image-crop-selection"
+            ></div>
+        </div>
+
+        <div class="button-row">
+            <button
+                id="confirmImageCropBtn"
+                class="primary-btn"
+                type="button"
+            >
+                이 범위 사용
+            </button>
+        </div>
+
+    </div>
 </div>
 
                 <label for="userAnswer">내 답</label>
@@ -138,62 +919,268 @@
                 <label for="correctAnswer">정답</label>
                 <input id="correctAnswer" type="text" placeholder="정답을 입력하세요" />
 
+                <!-- =====================================
+                     ScorePath 21-180
+                     정답 확인 중심 학습 화면
+                ===================================== -->
+
+                <!-- 1. 정답 확인 -->
+
+ <!-- =====================================
+     ScorePath UI 간소화
+     정답 확인
+===================================== -->
+
+<div class="scorepath-answer-action">
+
+    <button
+        id="checkBtn"
+        class="primary-btn"
+        type="button"
+    >
+        ✅ 정답 확인
+    </button>
+
+</div>
+
+                <!-- 기존 모드 종료 기능 유지 -->
+
                 <div class="button-row">
-                    <button id="checkBtn" class="primary-btn" type="button">정답 확인</button>
-                    <button id="analyzeBtn" class="accent-btn" type="button">AI 분석하기</button>
-                    <button id="clearInputsBtn" class="secondary-btn" type="button">입력 초기화</button>
-                    <button id="exitModeBtn" class="secondary-btn" type="button" hidden>모드 종료</button>
-                    <span id="loadingSpinner" class="spinner"></span>
+
+                    <button
+                        id="exitModeBtn"
+                        class="secondary-btn"
+                        type="button"
+                        hidden
+                    >
+                        모드 종료
+                    </button>
+
                 </div>
 
-                <p id="messageText" class="check-text"></p>
+                <!-- 2. 채점 결과 -->
+
+                <p
+                    id="messageText"
+                    class="check-text"
+                    role="status"
+                    aria-live="polite"
+                ></p>
+
+                <!-- 3. 다음 학습 행동 -->
+
+                <p
+                    id="scorePathStudyNextHintV01"
+                    class="scorepath-study-next-hint"
+                >
+                    문제를 풀고 정답을 확인해 주세요.
+                </p>
+
+                <!-- 4. 추가 학습 도구 -->
+
+<!-- =====================================
+     ScorePath AI 분석 도구
+     접기 제거 · 항상 표시
+===================================== -->
+
+<section
+    class="scorepath-study-tools"
+    aria-label="AI 분석 도구"
+    style="
+        margin-top:18px;
+        padding:18px;
+        background:#eff6ff;
+        border:2px solid #60a5fa;
+        border-radius:16px;
+        box-shadow:0 4px 14px rgba(37,99,235,0.10);
+    "
+>
+
+    <div
+        style="
+            font-size:18px;
+            font-weight:800;
+            color:#1d4ed8;
+            margin-bottom:8px;
+        "
+    >
+        🤖 AI 분석 · 학습 도우미
+    </div>
+
+    <p
+        style="
+            font-size:13px;
+            color:#475569;
+            line-height:1.6;
+            margin:0 0 14px;
+        "
+    >
+        AI로 틀린 이유와 부족한 개념을 분석하고,
+        문제 풀이 방법을 확인해 보세요.
+    </p>
+
+    <div
+        class="button-row"
+        style="
+            display:flex;
+            flex-wrap:wrap;
+            gap:10px;
+        "
+    >
+
+        <button
+            id="analyzeBtn"
+            class="accent-btn"
+            type="button"
+            style="
+                flex:2;
+                min-width:160px;
+                min-height:48px;
+                font-size:15px;
+                font-weight:800;
+                background:#2563eb;
+                color:white;
+                border:0;
+                border-radius:12px;
+                cursor:pointer;
+            "
+        >
+            ✨ AI 분석하기
+        </button>
+
+        <button
+            id="clearInputsBtn"
+            class="secondary-btn"
+            type="button"
+            style="
+                flex:1;
+                min-width:100px;
+                min-height:48px;
+                border-radius:12px;
+            "
+        >
+            입력 초기화
+        </button>
+
+    </div>
+
+</section>
+
+                <!-- 로딩 표시 -->
+
+                <span
+                    id="loadingSpinner"
+                    class="spinner"
+                ></span>
             </div>
 
-            <div class="card" id="cardAnalysis">
-                <h2>AI 분석 결과</h2>
+<!-- =====================================
+     ScorePath UI 간소화
+     AI 분석 및 추가 학습
+===================================== -->
 
-                <div id="verificationBox" hidden>
-    <p><strong>AI 판단 정답:</strong> <span id="resultAiAnswer"></span></p>
-    <p id="resultWarning"></p>
-    
-                <p class="section-label">1. 틀린 이유</p>
-                <p id="resultReason" class="result-box">아직 분석 결과가 없습니다.</p>
+<details class="card" id="cardAnalysis">
 
-                <p class="section-label">2. 부족한 개념</p>
-                <p id="resultConcept" class="result-box">아직 분석 결과가 없습니다.</p>
+    <summary style="cursor:pointer; font-weight:700;">
+        🤖 AI 분석 결과
+    </summary>
 
-                <p class="section-label">3. 해결 방법</p>
-                <p id="resultSolution" class="result-box">아직 분석 결과가 없습니다.</p>
+    <div style="margin-top:16px;">
 
-                <p id="analysisUpsellText" class="lock-mini-text"></p>
-            </div>
+        <div id="verificationBox" hidden>
+            <p>
+                <strong>AI 판단 정답:</strong>
+                <span id="resultAiAnswer"></span>
+            </p>
 
-            <div class="card" id="cardSimilar">
-                <h2>유사문제</h2>
-                <p class="check-text">요금제에 따라 개수가 달라집니다.</p>
-                <div id="similarProblemsBox" class="problem-list-box"></div>
-                <p id="similarUpsellText" class="lock-mini-text"></p>
-            </div>
+            <p id="resultWarning"></p>
+        </div>
 
-            <div class="card" id="cardAdvanced">
-                <h2>응용문제</h2>
-                <p class="check-text">8900원 전용 / 문제당 1회 / 하루 5회</p>
-                <div class="button-row">
-                    <button id="generateAdvancedBtn" class="secondary-btn" type="button">응용문제 생성</button>
-                </div>
-                <p id="advancedProblemBox" class="result-box">아직 응용문제가 없습니다.</p>
-                <div class="button-row">
-                    <button id="useAdvancedProblemBtn" class="secondary-btn" type="button">응용문제 풀기</button>
-                </div>
-            </div>
+        <p class="section-label">틀린 이유</p>
+        <p id="resultReason" class="result-box"></p>
 
-            <div class="card" id="cardRecommend">
-                <h2>오늘 복습 추천</h2>
-                <div id="recommendedReviewBox" class="problem-list-box"></div>
-            </div>
+        <p class="section-label">부족한 개념</p>
+        <p id="resultConcept" class="result-box"></p>
+
+        <p class="section-label">해결 방법</p>
+        <p id="resultSolution" class="result-box"></p>
+
+        <p
+            id="analysisUpsellText"
+            class="lock-mini-text"
+        ></p>
+
+    </div>
+
+</details>
+
+
+<details class="card" id="cardSimilar">
+
+    <summary style="cursor:pointer; font-weight:700;">
+        📚 유사문제
+    </summary>
+
+    <div style="margin-top:16px;">
+
+        <div
+            id="similarProblemsBox"
+            class="problem-list-box"
+        ></div>
+
+        <p
+            id="similarUpsellText"
+            class="lock-mini-text"
+        ></p>
+
+    </div>
+
+</details>
+
+
+<details class="card" id="cardAdvanced">
+
+    <summary style="cursor:pointer; font-weight:700;">
+        📝 응용문제
+    </summary>
+
+    <div style="margin-top:16px;">
+
+        <div class="button-row">
+
+            <button
+                id="generateAdvancedBtn"
+                class="secondary-btn"
+                type="button"
+            >
+                응용문제 생성
+            </button>
+
+        </div>
+
+        <p
+            id="advancedProblemBox"
+            class="result-box"
+        ></p>
+
+        <div class="button-row">
+
+            <button
+                id="useAdvancedProblemBtn"
+                class="secondary-btn"
+                type="button"
+            >
+                응용문제 풀기
+            </button>
+
+        </div>
+
+    </div>
+
+</details>
 
             <div class="card" id="cardSummary">
-                <h2>성취도 통계</h2>
+    <h2>성취도 통계</h2>
                 <div class="summary-stats-grid">
                     <div class="summary-stat-card">
                         <div class="summary-stat-title">총 오답</div>
@@ -276,6 +1263,31 @@
     </div>
 
     <div id="solvedSectionBody">
+        <!-- 맞힌 문제 전용 필터, 검색, 정렬 (오답과 독립) -->
+        <div class="toolbar" aria-label="맞힌 문제 검색 및 정렬">
+            <div class="toolbar-item">
+                <label for="solvedFilterSubject">과목 필터</label>
+                <select id="solvedFilterSubject">
+                    <option value="전체">전체</option>
+                </select>
+            </div>
+            <div class="toolbar-item">
+                <label for="solvedSearchInput">검색</label>
+                <input id="solvedSearchInput" type="text"
+                    placeholder="맞힌 문제, 개념, 정답 검색" />
+            </div>
+            <div class="toolbar-item">
+                <label for="solvedSortType">정렬</label>
+                <select id="solvedSortType">
+                    <option value="latest">최신순</option>
+                    <option value="oldest">오래된순</option>
+                </select>
+            </div>
+        </div>
+        <div class="count-box" aria-live="polite">
+            <p id="solvedTotalCount">맞힌 문제 전체: 0개</p>
+            <p id="solvedFilterCount">현재 보기: 전체 / 0개</p>
+        </div>
         <div class="button-row">
             <button
                 id="clearAllSolvedBtn"
@@ -336,10 +1348,11 @@
 
 
 <script src="script.js"></script>
+<script src="scorepath-commerce-ui.js"></script>
 
 
 <div class="test-banner">
-    현재 테스트 버전입니다. 하루 5회 AI 분석 가능합니다.
+    베타 테스트: 결제 방식은 내 정보에서 확인하세요. 로컬 모의 결제는 실제 청구 0원입니다.
 </div>
 
 
