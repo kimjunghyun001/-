@@ -19,7 +19,9 @@
       state=await api('/api/scorepath-commerce/status');
       const target=$('#spCommerceStatusV01');if(!target)return;
       const modeLabel=state.mode==='demo'?'로컬 모의 결제 (실제 청구 0원)':state.mode==='portone'?'포트원 정기결제': '결제 계약/설정 전 (결제 불가)';
-      target.textContent=`모드: ${modeLabel} · ${state.active?'구독 이용 중':'유료 구독 없음'} · ${state.periodEnd?'이용기간 종료: '+date(state.periodEnd):''} · ${state.autoRenew?'다음 자동결제 예정':'자동갱신 없음'}`;
+      target.textContent=state.betaAccess
+        ? `친구 무료 베타 체험 이용 중 (청구 0원) · 만료: ${date(state.periodEnd)} · 자동결제 없음`
+        : `모드: ${modeLabel} · ${state.active?'구독 이용 중':'유료 구독 없음'} · ${state.periodEnd?'이용기간 종료: '+date(state.periodEnd):''} · ${state.autoRenew?'다음 자동결제 예정':'자동갱신 없음'}`;
       const subscribe=$('#spCommerceSubscribeV01');
       if(subscribe) {subscribe.disabled=state.mode==='disabled'||state.active;subscribe.textContent=state.mode==='demo'?'모의 결제하기 (실제 청구 0원)':state.mode==='disabled'?'PG 계약 준비 중':'월 9,900원 구독 결제';}
       $('#spCommerceCancelV01').disabled=!state.autoRenew;

@@ -118,11 +118,20 @@ export function installCommerce(app, { dataDir, requireAuth, readDb, writeDb, bc
     return data && data.status === 'PAID' && data.amount && Number(data.amount.total) === PRICE &&
       (!data.storeId || data.storeId === config.storeId) && (data.currency === 'KRW' || !data.currency);
   }
+  // SCOREPATH_ONE_FRIEND_BETA_20261128: only an explicit, time-limited Neon operator grant enables free beta access.
+  // No public upgrade endpoint. Do not fabricate paid transactions or auto-renew.
   function stateOf(ledger, userId) {return ledger.users[userId] || null;}
+  function betaGrantOf(ledger, userId) {
+    const grant = ledger.betaGrants?.[userId];
+    return grant?.kind === 'friend-beta' && grant.enabled === true &&
+      Number.isFinite(Date.parse(grant.expiresAt)) && Date.parse(grant.expiresAt) > Date.now() ? grant : null;
+  }
   function validPaid(userId) {
     if (process.env.NODE_ENV !== 'production' && pgMode !== 'portone') return true; // local demo only
     try {
-      const sub = stateOf(load(), userId);
+      const ledger = load();
+      if (betaGrantOf(ledger, userId)) return true;
+      const sub = stateOf(ledger, userId);
       return !!(sub && sub.verified === true && sub.provider === 'portone' &&
         !sub.refunded && Date.parse(sub.periodEnd) > Date.now());
     } catch (e) { console.error('[commerce] entitlement check failed:', e.message); return false; }
@@ -139,15 +148,18 @@ export function installCommerce(app, { dataDir, requireAuth, readDb, writeDb, bc
   const publicStatus = (ledger, userId, req) => {
     const sub=stateOf(ledger,userId);
     const mode=provider(req);
+    const actualPaid=!!(sub && sub.verified && sub.provider === 'portone' && !sub.refunded && Date.parse(sub.periodEnd) > Date.now());
+    const freeBeta = !actualPaid ? betaGrantOf(ledger,userId) : null;
     return {
       mode, price:PRICE, policyVersion:POLICY_VERSION,
       realPaymentReady: mode === 'portone',
       storeId: mode === 'portone' ? config.storeId : '',
       channelKey: mode === 'portone' ? config.channelKey : '',
-      active:!!(sub && sub.verified && !sub.refunded && Date.parse(sub.periodEnd) > Date.now()),
-      provider:sub?.provider || 'none',
-      autoRenew:!!sub?.autoRenew,
-      periodEnd:sub?.periodEnd || null,
+      betaAccess:!!freeBeta,
+      active:actualPaid || !!freeBeta,
+      provider:freeBeta ? 'beta' : (sub?.provider || 'none'),
+      autoRenew:freeBeta ? false : !!sub?.autoRenew,
+      periodEnd:freeBeta ? freeBeta.expiresAt : (sub?.periodEnd || null),
       pending:!!sub?.pendingPaymentId,
       supportEmail:config.supportEmail,
       merchantName:config.merchantName,
@@ -157,7 +169,7 @@ export function installCommerce(app, { dataDir, requireAuth, readDb, writeDb, bc
   function syncPlan(sub, userId) {
     const db=readDb(neonStore ? {id:userId} : null); const user=db.users.find(u=>u.id===userId);
     if (!user) return;
-    const premium=!!(sub?.verified && !sub.refunded && Date.parse(sub.periodEnd)>Date.now());
+    const premium=!!(betaGrantOf(load(),userId) || (sub?.verified && !sub.refunded && Date.parse(sub.periodEnd)>Date.now()));
     if (user.plan !== (premium ? 'premium9900' : 'free')) {user.plan = premium?'premium9900':'free'; writeDb(db);}
   }
   // Called from the existing auth middleware: stale test-premium plans must not enter production.

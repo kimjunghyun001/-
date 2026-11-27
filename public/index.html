@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ScorePath | 나에게 맞는 다음 공부</title>
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="/scorepath-business.css" />
+    <script defer src="/scorepath-business-info.js"></script>
+    <script defer src="/scorepath-business-display.js"></script>
 </head>
 <body>
     <div class="wrap">
@@ -810,7 +813,6 @@
         id="problemImageInput"
         type="file"
         accept="image/*"
-        capture="environment"
         hidden
     />
 
@@ -1359,6 +1361,29 @@
 <button id="feedbackBtn">
     피드백 보내기
 </button>
+
+<!-- ScorePath 공식 사업자 정보: 값은 public/scorepath-business-info.js 한 곳에서 관리 -->
+<footer class="spbiz-footer" aria-label="ScorePath 사업자 정보">
+  <div class="spbiz-inner">
+    <p class="spbiz-title"><strong>ScorePath</strong><span>운영 사업자: <b data-spbiz="legalBusinessName">오답노트AI</b></span></p>
+    <div class="spbiz-grid">
+      <span>대표자: <b data-spbiz="representativeName">입력 필요</b></span>
+      <span>사업자등록번호: <b data-spbiz="businessRegistrationNumber">입력 필요</b></span>
+      <span>사업장 주소: <b data-spbiz="businessAddress">입력 필요</b></span>
+      <span>고객지원 전화: <b data-spbiz="supportPhone">입력 필요</b></span>
+      <span>고객지원 이메일: <b data-spbiz="supportEmail">입력 필요</b></span>
+      <span>통신판매업 신고: <b data-spbiz="mailOrderStatus">확인 필요</b></span>
+      <span>호스팅 제공자: <b data-spbiz="hostingProvider">Render</b></span>
+    </div>
+    <nav class="spbiz-policy-links" aria-label="서비스 정책">
+      <a href="/legal/terms.html">이용약관</a>
+      <a href="/legal/privacy.html">개인정보 처리방침</a>
+      <a href="/legal/refund.html">환불·청약철회</a>
+      <a href="/legal/subscription.html">정기결제 안내</a>
+    </nav>
+    <p class="spbiz-incomplete" data-spbiz-incomplete>사업자 정보 입력 중 · 실제 유료 결제는 아직 시작되지 않았습니다.</p>
+  </div>
+</footer>
 
 </body>
 </html>
