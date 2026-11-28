@@ -1,0 +1,15 @@
+/* ScorePath business info footer — independent of existing app layout */
+.spbiz-footer{width:100%;box-sizing:border-box;margin-top:28px;padding:23px 16px 26px;background:#f8fafc;color:#334155;border-top:1px solid #dce3eb;font-family:inherit;font-size:13px;line-height:1.65}
+.spbiz-inner{max-width:1000px;margin:0 auto}
+.spbiz-title{display:flex;gap:8px 18px;flex-wrap:wrap;align-items:center;margin:0 0 13px!important}
+.spbiz-title>strong{font-size:18px;color:#0f172a}
+.spbiz-title span{font-weight:400}
+.spbiz-title b,.spbiz-grid b{font-weight:500;overflow-wrap:anywhere;color:#1e293b}
+.spbiz-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px}
+.spbiz-policy-links{display:flex;flex-wrap:wrap;gap:9px 16px;margin:17px 0 6px!important;padding:0!important}
+.spbiz-policy-links a{color:#1d4ed8;text-decoration:underline;text-underline-offset:2px}
+.spbiz-incomplete{display:none;margin:9px 0 0!important;color:#9a3412;font-size:12px}
+.spbiz-incomplete.spbiz-show{display:block}
+.spbiz-legal-info{border-top:1px solid #e2e8f0;margin-top:26px;padding-top:16px}
+.spbiz-legal-info>h2{margin-top:0!important;border-top:0!important;padding-top:0!important}
+@media(max-width:640px){.spbiz-footer{padding:18px 15px 26px;font-size:12px}.spbiz-grid{grid-template-columns:minmax(0,1fr)}.spbiz-title>strong{font-size:16px}}
