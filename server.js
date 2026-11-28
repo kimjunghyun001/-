@@ -1010,7 +1010,7 @@ const PLAN_RULES = {
     // 새로운 정식 유료 플랜
     premium9900: {
         aiDaily: 15,
-        advancedDaily: 2,
+        advancedDaily: 3,
 
         storageLimit: Infinity,
         similarCount: 2,
