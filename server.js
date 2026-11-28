@@ -1010,7 +1010,7 @@ const PLAN_RULES = {
     // 새로운 정식 유료 플랜
     premium9900: {
         aiDaily: 15,
-        advancedDaily: 3,
+        advancedDaily: 2,
 
         storageLimit: Infinity,
         similarCount: 2,
@@ -23260,7 +23260,7 @@ app.post("/api/trash/restore", requireAuth, (req, res) => {
             error: "원래 위치를 확인할 수 없습니다."
         });
     }
-
+        
     user.trashNotes =
         user.trashNotes.filter((item) => item.id !== id);
 
