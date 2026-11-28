@@ -7,11 +7,11 @@
 window.SCOREPATH_BUSINESS_INFO = Object.freeze({
   brandName: 'ScorePath',
   legalBusinessName: '오답노트AI', // 현재 사업자등록증에 적힌 상호
-  representativeName: '', // 대표자 성명 (사업자등록증 기준)
-  businessRegistrationNumber: '', // 000-00-00000 형태
-  businessAddress: '', // 사업장 주소 (사업자등록증 기준)
-  supportPhone: '', // 실제 응대 가능한 번호
-  supportEmail: '', // 문의 이메일
-  mailOrderStatus: '', // 신고번호 또는 확인된 면제 관련 표시. 확인 전에는 비워두세요.
+  representativeName: '김광영', // 대표자 성명 (사업자등록증 기준)
+  businessRegistrationNumber: '640-39-01689', // 000-00-00000 형태
+  businessAddress: '서울특별시 관악구 당곡2길 37-3, 1층(봉천동)', // 사업장 주소 (사업자등록증 기준)
+  supportPhone: '07079385270', // 실제 응대 가능한 번호
+  supportEmail: 'scorepath.support@gamil.com', // 문의 이메일
+  mailOrderStatus: '통신판매업 신고 면제 대상(신고번호 없음)',// 신고번호 또는 확인된 면제 관련 표시. 확인 전에는 비워두세요.
   hostingProvider: 'Render'
 });
